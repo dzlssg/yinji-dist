@@ -2,6 +2,7 @@ name: Publish Public Package
 
 # 公开分发仓库的补发通道：源仓库 CI 未触发时，由本仓库自行发布公开版 Release。
 # 公开仓库只放空白模板 + 印迹工作台 PWA，不含任何真实简历内容。
+# 资产名统一用 ASCII：GitHub Release 会把中文资产名清洗成 "-.-v0.1.0.zip"。
 on:
   push:
     branches: [main]
@@ -20,11 +21,15 @@ jobs:
       - name: Create or refresh public release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ASSET: 印迹-公开版-v0.1.0.zip
+          ASSET: yinji-public-v0.1.0.zip
           TAG: v0.1.0
         run: |
           set -e
           if gh release view "$TAG" >/dev/null 2>&1; then
+            ids=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.assets[].id')
+            for id in $ids; do
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id" >/dev/null || true
+            done
             gh release upload "$TAG" "$ASSET" --clobber
           else
             gh release create "$TAG" "$ASSET" \
