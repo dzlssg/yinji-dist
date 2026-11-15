@@ -1,0 +1,35 @@
+name: Publish Public Package
+
+# 公开分发仓库的补发通道：源仓库 CI 未触发时，由本仓库自行发布公开版 Release。
+# 公开仓库只放空白模板 + 印迹工作台 PWA，不含任何真实简历内容。
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create or refresh public release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSET: 印迹-公开版-v0.1.0.zip
+          TAG: v0.1.0
+        run: |
+          set -e
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --clobber
+          else
+            gh release create "$TAG" "$ASSET" \
+              --title "印迹 v0.1.0" \
+              --notes "公开分发包：空白简历模板 + 印迹工作台 PWA，不含任何真实简历内容。包内附文件校验清单。" \
+              --target "$GITHUB_SHA"
+          fi
+          gh release view "$TAG" --json tagName,assets --jq '.tagName, (.assets[].name)'
