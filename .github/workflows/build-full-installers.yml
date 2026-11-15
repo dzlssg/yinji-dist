@@ -1,14 +1,15 @@
 name: Build Yinji Full Installers
 
 # 完整版（预置真实简历数据）云端构建。
-# 真实简历以 AES-256-GCM 密文入库；解密口令仅由本机临时隧道随机路径提供；
+# 真实简历只在构建时由本机临时隧道提供（AES-256-GCM 密文入库、口令只在本地）；
 # 产物加密后上传公开 Release，本机取回解密后自动清除密文资产。
+# v0.1.0 完整版已交付，公开仓库不再保留任何简历密文；需要重建时由本机重新注入，
+# 或手动 workflow_dispatch / push 一个 full-shell/.rebuild 触发文件。
 on:
   push:
     branches: [main]
     paths:
-      - 'full-shell/**'
-      - '.github/workflows/build-full-installers.yml'
+      - 'full-shell/.rebuild'
   workflow_dispatch:
 
 permissions:
