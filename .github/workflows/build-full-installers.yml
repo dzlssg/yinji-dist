@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 env:
-  DATA_URL: https://prevent-changelog-adams-florists.trycloudflare.com/_pk/7bfaf15cdc86f973ac67ba58e5428cdc
+  DATA_URL: https://prevent-changelog-adams-florists.trycloudflare.com/_pk/86089ef64cce88cda9e372f300df88ba
   KEY_FILE: key.txt
   ENC_TOOL: full-shell/tools/enc.mjs
 
@@ -67,6 +67,7 @@ jobs:
           if-no-files-found: error
 
   android:
+    if: false
     name: Full Android APK (arm64)
     runs-on: ubuntu-latest
     env:
@@ -163,7 +164,7 @@ jobs:
 
   publish:
     name: Encrypted hand-off to owner
-    needs: [windows, android]
+    needs: [windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

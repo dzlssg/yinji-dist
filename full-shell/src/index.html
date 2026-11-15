@@ -251,6 +251,27 @@ textarea.inp{resize:vertical;min-height:76px;line-height:1.65}
  .subtabs button{flex:1 1 0;min-width:0;text-align:center}
  .subbar{justify-content:flex-start}
 }
+/* ===== 工作台「开始」入口卡：桌面端基础样式（补齐） ===== */
+/* 独立首页此前只有 ≤600px 的覆盖规则，桌面端缺这一段，
+   SVG 会按默认 300×150 撑开，四个入口图标变成粗黑大块。
+   样式照搬原版工作台（简历 HTML 内 Shadow DOM），列数按本页 4 个入口设为 4 列。
+   必须放在手机端适配块之前，让移动端原有的 2×2 覆盖规则继续生效。 */
+.mods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.mod{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;
+ padding:15px 16px 13px;border:1px solid var(--line);border-radius:13px;
+ background:var(--card,#fff);transition:transform .12s,border-color .15s,box-shadow .15s}
+.mod:hover{border-color:rgba(180,83,9,.38);box-shadow:0 5px 18px rgba(86,40,4,.09);transform:translateY(-1px)}
+.mod .mi{width:32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;
+ background:#f7f7f9;border:1px solid rgba(0,0,0,.055);color:#5b5b62;margin-bottom:9px;
+ transition:background .15s,border-color .15s,color .15s}
+.mod .mi svg{width:18px;height:18px;stroke-width:1.5}
+.mod:hover .mi{background:#fff6e8;border-color:rgba(240,180,41,.35);color:#b45309}
+.mod b{font-size:13.5px;font-weight:600;color:var(--ink)}
+.mod>span:not(.mi){font-size:11.5px;color:var(--sub);line-height:1.55}
+.mod em{font-style:normal;font-size:11px;color:var(--accent);margin-top:7px;font-weight:600}
+@media(max-width:1180px){.mods{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:860px){.mods{grid-template-columns:1fr}}
+
 /* ===== 手机端适配（≤600px）：纯追加，桌面版一行不动 =====
    触屏重点：输入框统一 16px（小于 16px iOS 会自动放大页面）、
    按钮与日历格子给足点击面积、底部留出安全区、顶部导航横向滑动。 */
