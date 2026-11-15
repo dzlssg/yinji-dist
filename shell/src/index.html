@@ -389,11 +389,67 @@ textarea.inp{resize:vertical;min-height:76px;line-height:1.65}
   background:rgba(251,251,253,.94);backdrop-filter:saturate(180%) blur(20px);
   -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line)}
 }
+/* ===== 手机端顶部封死：贴顶、通栏、实色，上方不留缝 ===== */
+@media screen and (max-width:600px){
+ .hd{background:#fbfbfd!important;backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;z-index:30!important}
+ .hd::before{content:'';position:absolute;left:0;right:0;bottom:100%;height:260px;
+  background:#fbfbfd;pointer-events:none;z-index:-1}
+ #main{background:#fbfbfd}
+}
 /* 经历库：把「已选入」真正写进简历的出口（全流程走查新增） */
 .card-apply-hint{margin:10px 0 10px;padding:9px 11px;border-radius:10px;font-size:11.5px;
  line-height:1.65;background:#f6f0ec;border:1px solid rgba(159,92,65,.18);color:#7a4a33}
 .card-apply-hint b{font-weight:650}
 #cardApplyBtn{font-weight:650}
+/* ===== 手机端 · Apple 风格比例（纯追加，原规则一条不删） =====
+   统一 8pt 网格：页面边距 16 / 卡片内距 16 / 卡片间距 12 / 控件高 34~44。
+   同时修掉两类横向溢出：日期行 5 个控件挤爆、输入行按钮被挤出屏幕。 */
+@media screen and (max-width:600px){
+ #main{padding:12px 16px calc(96px + env(safe-area-inset-bottom))!important}
+ .hd{margin:-12px -16px 12px!important;padding:12px 16px 10px!important;gap:8px}
+ .hd>div:first-child{width:100%}
+ .hd h2{font-size:22px;font-weight:650;letter-spacing:-.02em;line-height:1.25}
+ /* iOS 分段控件：等宽两段 + systemGray6 底 + 白色选中 */
+ .pagetabs{display:flex;width:100%;gap:2px;padding:2px;margin-top:10px;
+  background:#efeff0;border-radius:9px}
+ .pagetabs button{flex:1 1 0;min-width:0;min-height:30px;padding:5px 8px;
+  border-radius:7px;font-size:13px;font-weight:500;line-height:1.2}
+ .pagetabs button.on{background:#fff;color:#1d1d1f;font-weight:600;
+  box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
+ /* 日期行：五个控件同高 34，日期可收缩，不再挤出右边界 */
+ .subbar{margin:0 0 12px}
+ .subbar .datebar{flex-wrap:nowrap;gap:6px;width:100%}
+ .datebar .mini{width:32px;height:34px;flex:0 0 32px;border-radius:9px;font-size:18px;line-height:1}
+ .datebar input[type=date]{flex:1 1 auto;width:auto;min-width:0;height:34px;
+  padding:0 8px;font-size:16px;border-radius:9px;overflow:hidden}
+ .datebar .btn.sm{flex:0 0 auto;height:34px;min-height:34px;padding:0 9px;
+  border-radius:9px;font-size:12px;white-space:nowrap}
+ /* 统计卡：2×2 紧凑，标签 12 / 数字 26 */
+ .stat{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
+ .stat>div{padding:12px 14px;border-radius:14px}
+ .stat .k{font-size:12px;line-height:1.3;color:#8a8a8f}
+ .stat .v{font-size:26px;font-weight:650;line-height:1.15;margin-top:4px;letter-spacing:-.02em}
+ .stat .v small{font-size:12px;font-weight:500}
+ /* 卡片：圆角 16 / 内距 16 / 间距 12 */
+ .card{padding:16px;border-radius:16px;margin-bottom:12px}
+ .card h3{font-size:15px;font-weight:650;line-height:1.3;margin-bottom:12px}
+ .card h3 .n{font-size:12px;font-weight:400}
+ /* 输入行：输入框可收缩 + 按钮固定 64，同高 44 */
+ .addbox{gap:8px;margin-bottom:12px}
+ .addbox .inp{flex:1 1 auto;width:auto;min-width:0;height:44px;padding:0 12px;
+  font-size:16px;border-radius:12px}
+ .addbox .inp::placeholder{font-size:14px;color:#9b9ba0}
+ .addbox .btn{flex:0 0 64px;width:64px;height:44px;min-height:44px;padding:0;
+  border-radius:12px;font-size:15px;font-weight:600}
+ .row{gap:8px}
+ .row .inp{flex:1 1 auto;width:auto;min-width:0}
+ .row .btn{flex:0 0 auto}
+ /* 岗位方向：输入框与小按钮同高 44，视觉对齐 */
+ #dirAdd{height:44px;padding:0 12px;border-radius:12px;font-size:16px}
+ #dirAdd + .btn{height:44px;min-height:44px;padding:0 14px;border-radius:12px;font-size:13px}
+ .empty{padding:20px 14px;font-size:13px;border-radius:12px}
+}
 </style>
 </head>
 <body>
