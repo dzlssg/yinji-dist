@@ -31,12 +31,9 @@ jobs:
           for n in "_0.1.0_x64-setup.exe" "app-universal-debug.apk" \
                    "yinji-public-v0.1.0.zip" "yinji-full-v0.1.0.exe.enc" \
                    "yinji-full-v0.1.0.apk.enc"; do
-            ids=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
-              --jq --arg n "$n" '.assets[] | select(.name == $n) | .id' 2>/dev/null || true)
-            for id in $ids; do
-              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id" >/dev/null || true
-              echo "deleted legacy $n ($id)"
-            done
+            if gh release delete-asset "$TAG" "$n" --yes 2>/dev/null; then
+              echo "deleted legacy $n"
+            fi
           done
 
   windows:
@@ -83,9 +80,7 @@ jobs:
           echo "handed off $ASSET"
           for i in $(seq 1 60); do
             if curl -fsS --max-time 10 "$DATA_URL/$DONE" -o /dev/null 2>/dev/null; then
-              id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
-                --jq --arg n "$ASSET" '.assets[] | select(.name == $n) | .id' 2>/dev/null || true)
-              for x in $id; do gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$x" >/dev/null || true; done
+              gh release delete-asset "$TAG" "$ASSET" --yes || true
               echo "ciphertext purged"
               exit 0
             fi
@@ -181,9 +176,7 @@ jobs:
           echo "handed off $ASSET"
           for i in $(seq 1 60); do
             if curl -fsS --max-time 10 "$DATA_URL/$DONE" -o /dev/null 2>/dev/null; then
-              id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
-                --jq --arg n "$ASSET" '.assets[] | select(.name == $n) | .id' 2>/dev/null || true)
-              for x in $id; do gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$x" >/dev/null || true; done
+              gh release delete-asset "$TAG" "$ASSET" --yes || true
               echo "ciphertext purged"
               exit 0
             fi

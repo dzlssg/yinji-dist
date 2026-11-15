@@ -1,0 +1,40 @@
+name: Purge Legacy Release Assets
+
+# 只清理 v1 错误的公开资产，不重建、不影响正在跑的构建。
+# 触发条件刻意与 build-app.yml 分开：只认 .purge 文件变动。
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.purge'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  TAG: v0.1.0
+
+jobs:
+  purge:
+    name: Delete legacy v1 installers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete legacy assets via API
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > /tmp/rel.json
+          for n in "_0.1.0_x64-setup.exe" "app-universal-debug.apk" \
+                   "yinji-public-v0.1.0.zip" "yinji-full-v0.1.0.exe.enc" \
+                   "yinji-full-v0.1.0.apk.enc" "yinji-orig-v0.1.0.exe.enc" \
+                   "yinji-orig-v0.1.0.apk.enc"; do
+            ids=$(jq -r --arg n "$n" '.assets[] | select(.name == $n) | .id' /tmp/rel.json)
+            for id in $ids; do
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id" \
+                >/dev/null && echo "deleted legacy $n ($id)"
+            done
+          done
+          echo "=== remaining assets ==="
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.assets[].name'
