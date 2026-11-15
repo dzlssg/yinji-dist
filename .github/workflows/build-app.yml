@@ -1,0 +1,191 @@
+name: Build Yinji Original App
+
+# 从 0 重做：前端只有主人原来弄好的那一个自包含 HTML，不做任何适配补丁。
+# 页面含真实姓名，只能以密文入库；口令与产物都走本机一次性隧道交接。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/.rebuild'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DATA_URL: https://prevent-changelog-adams-florists.trycloudflare.com/_pk/v2-aa80ec71639b57afcea44be552b2b06d
+  KEY_FILE: key.txt
+  ENC_TOOL: app/tools/enc.mjs
+  TAG: v0.1.0
+
+jobs:
+  purge-old-release:
+    name: Remove wrong v1 assets from public release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete legacy installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          for n in "_0.1.0_x64-setup.exe" "app-universal-debug.apk" \
+                   "yinji-public-v0.1.0.zip" "yinji-full-v0.1.0.exe.enc" \
+                   "yinji-full-v0.1.0.apk.enc"; do
+            ids=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+              --jq --arg n "$n" '.assets[] | select(.name == $n) | .id' 2>/dev/null || true)
+            for id in $ids; do
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id" >/dev/null || true
+              echo "deleted legacy $n ($id)"
+            done
+          done
+
+  windows:
+    name: Original Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Fetch one-time key and decrypt the ORIGINAL page
+        shell: bash
+        run: |
+          set -eu
+          curl -fsSL --retry 6 --retry-all-errors --max-time 60 "$DATA_URL/key.txt" -o "$KEY_FILE"
+          node "$ENC_TOOL" decrypt app/src/index.html.enc app/src/index.html "$KEY_FILE"
+          test "$(wc -c < app/src/index.html)" -gt 500000
+          rm -f app/src/index.html.enc
+          echo "original page bytes: $(wc -c < app/src/index.html)"
+      - name: Generate app icons
+        working-directory: app/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon ../src/icon.svg
+      - name: Build Tauri (Windows NSIS)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+      - name: Encrypt installer and hand off
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSET: yinji-orig-v0.1.0.exe.enc
+          DONE: done-win.txt
+        run: |
+          set -eu
+          EXE=$(find app/src-tauri/target/release/bundle/nsis -name '*.exe' -type f | head -1)
+          test -n "$EXE"
+          mkdir -p out
+          node "$ENC_TOOL" encrypt "$EXE" "out/$ASSET" "$KEY_FILE"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "印迹 v0.1.0" --notes "印迹原版完整安装包"
+          gh release upload "$TAG" "out/$ASSET" --clobber
+          echo "handed off $ASSET"
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 10 "$DATA_URL/$DONE" -o /dev/null 2>/dev/null; then
+              id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+                --jq --arg n "$ASSET" '.assets[] | select(.name == $n) | .id' 2>/dev/null || true)
+              for x in $id; do gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$x" >/dev/null || true; done
+              echo "ciphertext purged"
+              exit 0
+            fi
+            sleep 30
+          done
+
+  android:
+    name: Original Android APK (arm64)
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - name: Accept licenses and install NDK
+        run: |
+          SDKMANAGER=$(find $ANDROID_SDK_ROOT/cmdline-tools -name sdkmanager -type f 2>/dev/null | head -1)
+          if [ -n "$SDKMANAGER" ]; then
+            yes | $SDKMANAGER --licenses || true
+            $SDKMANAGER "ndk;25.2.9519653" || true
+          fi
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+      - name: Fetch one-time key and decrypt the ORIGINAL page
+        run: |
+          set -eu
+          curl -fsSL --retry 6 --retry-all-errors --max-time 60 "$DATA_URL/key.txt" -o "$KEY_FILE"
+          node "$ENC_TOOL" decrypt app/src/index.html.enc app/src/index.html "$KEY_FILE"
+          test "$(wc -c < app/src/index.html)" -gt 500000
+          rm -f app/src/index.html.enc
+      - name: Generate app icons
+        working-directory: app/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon ../src/icon.svg
+      - name: Init Android project
+        working-directory: app/src-tauri
+        run: cargo tauri android init
+      - name: Apply brand icons
+        working-directory: app/src-tauri
+        run: |
+          set -eu
+          SRC=icons/android
+          DSTDIR=gen/android/app/src/main/res
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            for f in ic_launcher.png ic_launcher_foreground.png ic_launcher_round.png; do
+              if [ -f "$SRC/mipmap-$d/$f" ] && [ -f "$DSTDIR/mipmap-$d/$f" ]; then
+                cp -f "$SRC/mipmap-$d/$f" "$DSTDIR/mipmap-$d/$f"
+              fi
+            done
+          done
+      - name: Build APK
+        working-directory: app/src-tauri
+        run: cargo tauri android build --debug --apk --target aarch64
+      - name: Re-sign APK with fixed key
+        working-directory: app/src-tauri
+        env:
+          KS_PASS: yinji-android-2026
+        run: |
+          set -eu
+          BT=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          [ -n "$BT" ] || { echo "::error::no android build-tools"; exit 1; }
+          for APK in $(find gen/android/app/build/outputs/apk -type f -name '*.apk'); do
+            "$BT/zipalign" -f -p 4 "$APK" /tmp/yj-aligned.apk
+            "$BT/apksigner" sign --ks signing/yinji-android.p12 --ks-type PKCS12 \
+              --ks-pass "pass:$KS_PASS" --key-pass "pass:$KS_PASS" \
+              --out /tmp/yj-signed.apk /tmp/yj-aligned.apk
+            "$BT/apksigner" verify /tmp/yj-signed.apk
+            cp /tmp/yj-signed.apk "$APK"
+            rm -f /tmp/yj-aligned.apk /tmp/yj-signed.apk
+          done
+      - name: Encrypt APK and hand off
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSET: yinji-orig-v0.1.0.apk.enc
+          DONE: done-android.txt
+        run: |
+          set -eu
+          APK=$(find app/src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -type f | head -1)
+          test -n "$APK"
+          mkdir -p out
+          node "$ENC_TOOL" encrypt "$APK" "out/$ASSET" "$KEY_FILE"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "印迹 v0.1.0" --notes "印迹原版完整安装包"
+          gh release upload "$TAG" "out/$ASSET" --clobber
+          echo "handed off $ASSET"
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 10 "$DATA_URL/$DONE" -o /dev/null 2>/dev/null; then
+              id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+                --jq --arg n "$ASSET" '.assets[] | select(.name == $n) | .id' 2>/dev/null || true)
+              for x in $id; do gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$x" >/dev/null || true; done
+              echo "ciphertext purged"
+              exit 0
+            fi
+            sleep 30
+          done
