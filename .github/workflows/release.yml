@@ -6,6 +6,9 @@ name: Publish Public Package
 on:
   push:
     branches: [main]
+    paths:
+      - 'yinji-public-*.zip'
+      - '.github/workflows/release.yml'
     tags: ['v*']
   workflow_dispatch:
 
@@ -26,7 +29,7 @@ jobs:
         run: |
           set -e
           if gh release view "$TAG" >/dev/null 2>&1; then
-            ids=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.assets[].id')
+            ids=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.assets[] | select(.name | endswith(".zip")) | .id')
             for id in $ids; do
               gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id" >/dev/null || true
             done

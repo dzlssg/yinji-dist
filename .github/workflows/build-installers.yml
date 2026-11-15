@@ -1,0 +1,150 @@
+name: Build Yinji Installers
+
+# 云端构建印迹的 Windows 安装包与 Android APK（本机无 Rust/Android SDK）。
+# 前端只用公开版资源（工作台 + 空白模板），不含任何真实简历内容。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'shell/**'
+      - '.github/workflows/build-installers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installer (NSIS)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Generate app icons
+        working-directory: shell/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon ../src/icon.svg
+      - name: Build Tauri (Windows NSIS)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: shell
+      - name: List bundles
+        shell: pwsh
+        run: Get-ChildItem -Recurse shell/src-tauri/target/release/bundle | Select-Object FullName,Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yinji-windows
+          path: shell/src-tauri/target/release/bundle/**/*
+          if-no-files-found: error
+
+  android:
+    name: Android APK (arm64)
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - name: Accept licenses and install NDK
+        run: |
+          SDKMANAGER=$(find $ANDROID_SDK_ROOT/cmdline-tools -name sdkmanager -type f 2>/dev/null | head -1)
+          if [ -n "$SDKMANAGER" ]; then
+            yes | $SDKMANAGER --licenses || true
+            $SDKMANAGER "ndk;25.2.9519653" || true
+          fi
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+      - name: Generate app icons
+        working-directory: shell/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon ../src/icon.svg
+      - name: Init Android project
+        working-directory: shell/src-tauri
+        run: cargo tauri android init
+      - name: Apply brand icons
+        working-directory: shell/src-tauri
+        run: |
+          set -eu
+          SRC=icons/android
+          DSTDIR=gen/android/app/src/main/res
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            for f in ic_launcher.png ic_launcher_foreground.png ic_launcher_round.png; do
+              if [ -f "$SRC/mipmap-$d/$f" ] && [ -f "$DSTDIR/mipmap-$d/$f" ]; then
+                cp -f "$SRC/mipmap-$d/$f" "$DSTDIR/mipmap-$d/$f"
+              fi
+            done
+          done
+          echo "brand icons applied"
+      - name: Build APK
+        working-directory: shell/src-tauri
+        run: cargo tauri android build --debug --apk --target aarch64
+      - name: Re-sign APK with fixed key
+        working-directory: shell/src-tauri
+        env:
+          KS_PASS: yinji-android-2026
+        run: |
+          set -eu
+          BT=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          [ -n "$BT" ] || { echo "::error::找不到 Android build-tools"; exit 1; }
+          ZIPALIGN="$BT/zipalign" APKSIGNER="$BT/apksigner"
+          COUNT=$(find gen/android/app/build/outputs/apk -type f -name '*.apk' | wc -l)
+          [ "$COUNT" -gt 0 ] || { echo "::error::未找到待签名 APK"; exit 1; }
+          for APK in $(find gen/android/app/build/outputs/apk -type f -name '*.apk'); do
+            echo "re-sign $APK"
+            "$ZIPALIGN" -f -p 4 "$APK" /tmp/yj-aligned.apk
+            "$APKSIGNER" sign --ks signing/yinji-android.p12 --ks-type PKCS12 \
+              --ks-pass "pass:$KS_PASS" --key-pass "pass:$KS_PASS" \
+              --out /tmp/yj-signed.apk /tmp/yj-aligned.apk
+            "$APKSIGNER" verify /tmp/yj-signed.apk
+            cp /tmp/yj-signed.apk "$APK"
+            rm -f /tmp/yj-aligned.apk /tmp/yj-signed.apk
+          done
+      - name: List APK outputs
+        run: find shell/src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec ls -lh {} \;
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yinji-android
+          path: shell/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+
+  publish:
+    name: Attach installers to Release
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Stage installers
+        run: |
+          mkdir -p out
+          find artifacts -type f -name '*.exe' -exec cp {} out/ \;
+          find artifacts -type f -name '*.apk' -exec cp {} out/ \;
+          ls -lh out
+      - name: Upload to public release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v0.1.0
+        run: |
+          set -eu
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "印迹 v0.1.0" --notes "印迹工作台安装包"
+          for f in out/*; do
+            echo "upload $(basename "$f")"
+            gh release upload "$TAG" "$f" --clobber
+          done
+          gh release view "$TAG" --json assets --jq '.assets[].name'
