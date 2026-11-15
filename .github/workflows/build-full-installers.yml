@@ -1,0 +1,208 @@
+name: Build Yinji Full Installers
+
+# 完整版（预置真实简历数据）云端构建。
+# 真实简历以 AES-256-GCM 密文入库；解密口令仅由本机临时隧道随机路径提供；
+# 产物加密后上传公开 Release，本机取回解密后自动清除密文资产。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'full-shell/**'
+      - '.github/workflows/build-full-installers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DATA_URL: https://prevent-changelog-adams-florists.trycloudflare.com/_pk/8b0be5aff56581b805b4f798f0c4476b
+  KEY_FILE: key.txt
+  ENC_TOOL: full-shell/tools/enc.mjs
+
+jobs:
+  windows:
+    name: Full Windows installer (NSIS)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Fetch one-time key
+        shell: bash
+        run: |
+          set -eu
+          curl -fsSL --retry 6 --retry-all-errors --max-time 60 "$DATA_URL/key.txt" -o "$KEY_FILE"
+          test "$(wc -c < "$KEY_FILE")" -ge 32
+      - name: Decrypt full resume into frontend
+        shell: bash
+        run: |
+          set -eu
+          node "$ENC_TOOL" decrypt full-shell/src/resume.html.enc full-shell/src/resume.html "$KEY_FILE"
+          test "$(wc -c < full-shell/src/resume.html)" -gt 500000
+          rm -f full-shell/src/resume.html.enc
+          echo "full resume bytes: $(wc -c < full-shell/src/resume.html)"
+      - name: Generate app icons
+        working-directory: full-shell/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon ../src/icon.svg
+      - name: Build Tauri (Windows NSIS)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: full-shell
+      - name: Encrypt installer
+        shell: bash
+        run: |
+          set -eu
+          EXE=$(find full-shell/src-tauri/target/release/bundle/nsis -name '*.exe' -type f | head -1)
+          test -n "$EXE"
+          mkdir -p out
+          node "$ENC_TOOL" encrypt "$EXE" out/yinji-full-v0.1.0.exe.enc "$KEY_FILE"
+          ls -lh out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yinji-full-windows
+          path: out/*.enc
+          if-no-files-found: error
+
+  android:
+    name: Full Android APK (arm64)
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - name: Accept licenses and install NDK
+        run: |
+          SDKMANAGER=$(find $ANDROID_SDK_ROOT/cmdline-tools -name sdkmanager -type f 2>/dev/null | head -1)
+          if [ -n "$SDKMANAGER" ]; then
+            yes | $SDKMANAGER --licenses || true
+            $SDKMANAGER "ndk;25.2.9519653" || true
+          fi
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+      - name: Fetch one-time key
+        run: |
+          set -eu
+          curl -fsSL --retry 6 --retry-all-errors --max-time 60 "$DATA_URL/key.txt" -o "$KEY_FILE"
+          test "$(wc -c < "$KEY_FILE")" -ge 32
+      - name: Decrypt full resume into frontend
+        run: |
+          set -eu
+          node "$ENC_TOOL" decrypt full-shell/src/resume.html.enc full-shell/src/resume.html "$KEY_FILE"
+          test "$(wc -c < full-shell/src/resume.html)" -gt 500000
+          rm -f full-shell/src/resume.html.enc
+          echo "full resume bytes: $(wc -c < full-shell/src/resume.html)"
+      - name: Generate app icons
+        working-directory: full-shell/src-tauri
+        run: npx --yes @tauri-apps/cli@latest icon ../src/icon.svg
+      - name: Init Android project
+        working-directory: full-shell/src-tauri
+        run: cargo tauri android init
+      - name: Apply brand icons
+        working-directory: full-shell/src-tauri
+        run: |
+          set -eu
+          SRC=icons/android
+          DSTDIR=gen/android/app/src/main/res
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            for f in ic_launcher.png ic_launcher_foreground.png ic_launcher_round.png; do
+              if [ -f "$SRC/mipmap-$d/$f" ] && [ -f "$DSTDIR/mipmap-$d/$f" ]; then
+                cp -f "$SRC/mipmap-$d/$f" "$DSTDIR/mipmap-$d/$f"
+              fi
+            done
+          done
+          echo "brand icons applied"
+      - name: Build APK
+        working-directory: full-shell/src-tauri
+        run: cargo tauri android build --debug --apk --target aarch64
+      - name: Re-sign APK with fixed key
+        working-directory: full-shell/src-tauri
+        env:
+          KS_PASS: yinji-android-2026
+        run: |
+          set -eu
+          BT=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          [ -n "$BT" ] || { echo "::error::no android build-tools"; exit 1; }
+          COUNT=$(find gen/android/app/build/outputs/apk -type f -name '*.apk' | wc -l)
+          [ "$COUNT" -gt 0 ] || { echo "::error::no apk"; exit 1; }
+          for APK in $(find gen/android/app/build/outputs/apk -type f -name '*.apk'); do
+            "$BT/zipalign" -f -p 4 "$APK" /tmp/yj-aligned.apk
+            "$BT/apksigner" sign --ks signing/yinji-android.p12 --ks-type PKCS12 \
+              --ks-pass "pass:$KS_PASS" --key-pass "pass:$KS_PASS" \
+              --out /tmp/yj-signed.apk /tmp/yj-aligned.apk
+            "$BT/apksigner" verify /tmp/yj-signed.apk
+            cp /tmp/yj-signed.apk "$APK"
+            rm -f /tmp/yj-aligned.apk /tmp/yj-signed.apk
+          done
+      - name: Encrypt APK
+        run: |
+          set -eu
+          APK=$(find full-shell/src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -type f | head -1)
+          test -n "$APK"
+          mkdir -p out
+          node "$ENC_TOOL" encrypt "$APK" out/yinji-full-v0.1.0.apk.enc "$KEY_FILE"
+          ls -lh out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yinji-full-android
+          path: out/*.enc
+          if-no-files-found: error
+
+  publish:
+    name: Encrypted hand-off to owner
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Stage encrypted assets
+        run: |
+          set -eu
+          mkdir -p out
+          find artifacts -name '*.enc' -type f -exec cp {} out/ \;
+          ls -lh out
+      - name: Upload encrypted assets to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v0.1.0
+        run: |
+          set -eu
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "印迹 v0.1.0" --notes "印迹安装包"
+          for f in out/*.enc; do gh release upload "$TAG" "$f" --clobber; done
+          gh release view "$TAG" --json assets --jq '.assets[].name'
+      - name: Wait for owner pickup, then purge encrypted assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v0.1.0
+        run: |
+          set -u
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 10 "$DATA_URL/done.txt" -o /dev/null 2>/dev/null; then
+              echo "pickup confirmed"
+              ids=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.assets[] | select(.name | endswith(".enc")) | .id')
+              for id in $ids; do
+                gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id" >/dev/null || true
+              done
+              echo "encrypted assets purged"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "pickup timeout; encrypted assets remain (ciphertext only, key stays private)"
