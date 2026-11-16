@@ -9076,7 +9076,7 @@ window.__yinji={
    3) 发现新版本时，原有更新弹窗照常弹出，这里同步在卡片里写一行状态。 */
 (function(){
  'use strict';
- var DL='https://associated-smoking-salon-infants.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit3';
+ var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit4';
  var REL='https://github.com/dzlssg/yinji-dist/releases';
  var done=false,tries=0,hint=null,state=null,last='';
  function root(){var h=document.getElementById('yjHost');return h&&h.shadowRoot;}
@@ -9232,6 +9232,64 @@ window.__yinji={
  if(document.readyState==='loading')
   document.addEventListener('DOMContentLoaded',function(){setTimeout(tryInit,180);});
  else setTimeout(tryInit,180);
+})();
+
+/* ===== YJ-CLOUD-FALLBACK · 云端响应兜底（纯追加，不改任何原有请求逻辑） =====
+   症状：设置页报「Unexpected token '<', "<!DOCTYPE "... is not valid JSON」。
+   根因：http(s) 页面会先把云端请求发到同源 /sb/ 转发口；安装包里的 APP
+        没有这个转发口，请求会被 APP 自己接住并返回首页 HTML（或网络中间页），
+        旧代码只识别 404/5xx，遇到「200 + 网页」就把它当 JSON 解析。
+   修法：只要 /sb/ 返回的不是 JSON，就自动改走 Supabase 直连重发一次，
+        并记住该环境无转发，后续请求直接走直连；正常 JSON 响应完全不受影响。 */
+(function(){
+ var raw=window.fetch;
+ var SB='https://vlyyxiuqsiukdubxuzgu.supabase.co';
+ var MARK='/sb/';
+ var broken=false;
+ function direct(url){
+  var i=url.indexOf(MARK);
+  if(i<0)return '';
+  var rest=url.slice(i+MARK.length);
+  while(rest.charAt(0)==='/')rest=rest.slice(1);
+  return SB+'/'+rest;
+ }
+ function isReq(u){return typeof Request!=='undefined'&&u instanceof Request;}
+ function again(du,u,o){
+  if(isReq(u)){
+   try{return raw(new Request(du,u),o);}catch(e){}
+  }
+  return raw(du,o);
+ }
+ function ct(r){
+  try{return String((r.headers&&r.headers.get&&r.headers.get('content-type'))||'');}
+  catch(e){return '';}
+ }
+ function isJson(text){
+  var t=String(text||''),k=0;
+  while(k<t.length&&t.charCodeAt(k)<=32)k++;
+  var c=t.charAt(k);
+  return c==='{'||c==='[';
+ }
+ window.fetch=function(u,o){
+  var url=String((u&&u.url)||u||'');
+  var du=direct(url);
+  if(!du)return raw.apply(window,arguments);
+  if(broken)return again(du,u,o);
+  return raw.apply(window,arguments).then(function(r){
+   if(/json/i.test(ct(r)))return r;
+   return r.clone().text().then(function(t){
+    if(isJson(t))return r;                /* 其实是 JSON，只是类型头不对 */
+    broken=true;                          /* 此环境没有 /sb/ 转发，后续一律直连 */
+    return again(du,u,o).then(function(r2){
+     if(/json/i.test(ct(r2)))return r2;
+     return r2.clone().text().then(function(t2){
+      if(isJson(t2))return r2;
+      throw new Error('云端返回的是网页不是数据，自动改走直连后仍失败；请检查网络后重试。');
+     },function(){return r2;});
+    });
+   },function(){return r;});
+  });
+ };
 })();
 </script>
 </body>
