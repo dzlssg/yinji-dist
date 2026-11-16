@@ -9076,7 +9076,7 @@ window.__yinji={
    3) 发现新版本时，原有更新弹窗照常弹出，这里同步在卡片里写一行状态。 */
 (function(){
  'use strict';
- var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit4';
+ var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit5';
  var REL='https://github.com/dzlssg/yinji-dist/releases';
  var done=false,tries=0,hint=null,state=null,last='';
  function root(){var h=document.getElementById('yjHost');return h&&h.shadowRoot;}
@@ -9290,6 +9290,72 @@ window.__yinji={
    },function(){return r;});
   });
  };
+})();
+
+/* ===== YJ-RESTORE-GUARD · 云端恢复后保住自动适配（纯追加，不改原有逻辑） =====
+   症状：点「从云端拉取 / 恢复数据」后，状态栏留白消失、标题与系统时间重叠、
+        右上保存按钮被电量图标压住、页面大片空白。
+   根因：__sync.apply → __style.apply 里 root.setAttribute('style', s.vars||'')
+        把 documentElement 的 inline style 整体覆盖，抹掉 YJ-FIT 运行时设的
+        --yj-sb / --yj-gb / --yj-gutter；同时 document.body.className 被整体
+        覆盖，抹掉 yj-desk 标记。body class 的 MutationObserver 虽然几百 ms
+        后能自愈，但真实数据里 className 常常没变化，变量就永久停在 0px。
+   修法：① 包住 __sync.apply，同步执行完立刻补回变量与标记，再延时重算两次；
+        ② 通用兜底：任何入口把 root style 整体换掉导致 --yj-sb 丢失/为 0，
+           都自动重跑 fit()（带防循环标志）。 */
+(function(){
+ var RS=document.documentElement.style;
+ var KEYS=['--yj-sb','--yj-gb','--yj-gutter','--yj-status-bg','--yj-page-zoom'];
+ function snap(){
+  var o={},i;
+  for(i=0;i<KEYS.length;i++)o[KEYS[i]]=RS.getPropertyValue(KEYS[i]);
+  o.desk=document.body.classList.contains('yj-desk');
+  return o;
+ }
+ function putBack(o){
+  var i,k;
+  for(i=0;i<KEYS.length;i++){
+   k=KEYS[i];
+   if(o[k]&&RS.getPropertyValue(k)!==o[k])RS.setProperty(k,o[k]);
+  }
+  if(o.desk&&!document.body.classList.contains('yj-desk'))
+   document.body.classList.add('yj-desk');
+ }
+ function heal(){try{if(typeof window.__yjFit==='function')window.__yjFit();}catch(e){}}
+ function guard(){
+  var s=window.__sync;
+  if(!s||typeof s.apply!=='function')return false;
+  if(s.__yjRestoreGuarded)return true;
+  var orig=s.apply;
+  s.__yjRestoreGuarded=true;
+  s.apply=function(){
+   var keep=snap(),r;
+   try{r=orig.apply(this,arguments);}finally{
+    putBack(keep);                    /* 同步补回：不留任何贴顶闪烁窗口 */
+    setTimeout(function(){putBack(keep);heal();},0);
+    setTimeout(function(){putBack(keep);heal();},300);
+   }
+   return r;
+  };
+  return true;
+ }
+ function tryGuard(){if(!guard())setTimeout(tryGuard,300);}
+ if(document.readyState==='loading')
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(tryGuard,150);});
+ else setTimeout(tryGuard,150);
+ /* 通用兜底：撤销 / 重做 / 切换格式方案等其它入口也会整体覆盖 root style */
+ var busy=false;
+ if(window.MutationObserver){
+  new MutationObserver(function(){
+   if(busy)return;
+   var short=Math.min(window.innerWidth||390,window.innerHeight||844);
+   if(short>600)return;
+   var sb=parseFloat(RS.getPropertyValue('--yj-sb'))||0;
+   if(sb>=20)return;
+   busy=true;
+   try{heal();}finally{setTimeout(function(){busy=false;},0);}
+  }).observe(document.documentElement,{attributes:true,attributeFilter:['style']});
+ }
 })();
 </script>
 </body>
