@@ -2,7 +2,7 @@
 <html lang="zh-CN" style="--font-main:'Microsoft YaHei','PingFang SC',sans-serif;--font-scale:0.94;--lh:1.36;--para-gap:0.4mm;--ls:0px;--dot-scale:1;--icon-scale:1;--item-gap:0.8mm;--td-gap:0mm;--pad-y:4mm;--pad-x:4mm;--left-w:34%;--sec-gap:2.5mm;--pad-l:4mm;--pad-ml:4mm;--pad-mr:5mm;--pad-r:5mm">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes,viewport-fit=cover"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
 <title>示例简历-外贸方向-可编辑版</title>
 <style>
 *{box-sizing:border-box}
@@ -1346,6 +1346,12 @@ body.yj-desk{overflow:hidden}
    于是「已登录」「已同步到云端」「连不上云端」全被工作台盖住，看起来像没反应。 */
 #toast{z-index:1200!important}
 #toast.on{opacity:1!important;transform:translate(-50%,0)!important}
+
+/* ===== YJ-ZOOM-GUARD · 非简历页禁止双指缩放（纯追加，原规则一条不删） ===== */
+@media screen and (max-width:600px){
+ html,body{touch-action:pan-x pan-y}
+ #yjHost,#vaultModal,#shareModal,#dataViewModal,#formatPanel{touch-action:pan-x pan-y}
+}
 </style>
 </head>
 <body class="editing original-mode" data-doc="resume" data-legacy="示例简历-外贸方向-可编辑版">
@@ -4530,7 +4536,7 @@ document.addEventListener('input',function(e){
    之后「保存文件 / 保存数据」都 createWritable() 覆盖同一文件，不再产生新副本。
    Edge / Chrome 支持；不支持或未授权时自动回退成原来的下载，不会丢数据。 */
 window.__fs=(function(){
-  var CACHE={},DBNAME='resumeLocalFiles_v1',STORE='files',dbp=null,listeners=[];
+  var CACHE={},DBNAME='resumeLocalFiles_demo_v1',STORE='files',dbp=null,listeners=[];
   function supported(){return typeof window.showSaveFilePicker==='function';}
   function types(kind){
     if(kind==='html')return [{description:'简历 HTML 文件',accept:{'text/html':['.html','.htm']}}];
@@ -5561,7 +5567,9 @@ function initVault(){
       en[b.id]=base?(base.enabled[b.id]!==false):true;
       pick[b.id]=base?arr(base.pick[b.id]).slice():[];
     });
-    var t={id:uid('t'),name:nm,intent:copy?intentText(base):('求职意向：'+esc(nm)),
+    var it=copy?String(intentText(base)||''):'';
+    if(copy){var ol=intentLabel(base);if(ol&&it.indexOf(ol)>=0)it=it.split(ol).join(esc(nm));else it='求职意向：'+esc(nm);}
+    var t={id:uid('t'),name:nm,intent:it,
            note:'',enabled:en,pick:pick,updated:now()};
     DB.targets.push(t);syncCommonPicks();DB.active=t.id;allMode=false;showAllDirs=true;
     byId('vaultNewBox').style.display='none';byId('vaultNewName').value='';
@@ -6389,7 +6397,7 @@ initVault();
    格式快照复用撤销栈的思路：CSS 变量 + body 版式类 + 主题 + 局部 inline 样式，
    完全不含正文文字，恢复时只改样式、不动内容。 */
 (function(){
-  var KEY='resumeStyle_v1',card=byId('styleCard');
+  var KEY='resumeStyle_demo_v1',card=byId('styleCard');
   if(!card)return;
   /* 兼容迁移：「单栏通栏」版式已移除，清掉旧快照 / 旧文件里残留的 layout-single 类 */
   document.body.className=document.body.className.replace(/\s*layout-single\b/g,'');
@@ -6701,7 +6709,7 @@ initVault();
   /* 稳定文档 ID：新版 HTML 与旧版共用同一把钥匙；旧版按标题存的键在启动时自动接管 */
   var DOCID=document.body.getAttribute('data-doc')||document.title;
   var LEGACY=document.body.getAttribute('data-legacy')||document.title;
-  var ckey='resumeContent_v1_'+DOCID;
+  var ckey='resumeContent_demo_v1_'+DOCID;
   var caTm=null;
   function autoOn(){
     try{var s=window.__style&&window.__style.store&&window.__style.store();
@@ -6745,7 +6753,7 @@ initVault();
      两份文档（简历 / 空白模板）互不串数据 */
   function legacyBest(){
     /* 只认「本文件自己的」按标题存的旧键，避免简历与空白模板互相串数据 */
-    var k='resumeContent_v1_'+LEGACY;
+    var k='resumeContent_demo_v1_'+LEGACY;
     if(k===ckey)return null;
     try{var o=JSON.parse(localStorage.getItem(k)||'null');return (o&&o.h)?o:null;}catch(e){return null;}
   }
@@ -6816,14 +6824,14 @@ initVault();
   function docState(){
     var t=0;
     try{
-      var c=JSON.parse(localStorage.getItem('resumeContent_v1_'+DOC)||'null');
+      var c=JSON.parse(localStorage.getItem('resumeContent_demo_v1_'+DOC)||'null');
       if(c&&c.at)t=Math.max(t,Number(c.at)||0);
-      var st=JSON.parse(localStorage.getItem('resumeStyle_v1')||'null');
+      var st=JSON.parse(localStorage.getItem('resumeStyle_demo_v1')||'null');
       if(st&&st.auto)Object.keys(st.auto).forEach(function(k){t=Math.max(t,Number(st.auto[k].at)||0);});
-      var db=JSON.parse(localStorage.getItem('resumeVault_v1')||'null');
+      var db=JSON.parse(localStorage.getItem('resumeVault_demo_v1')||'null');
       if(db&&db.updated)t=Math.max(t,parseT(db.updated));
       /* 印迹工作台也算「本页最后一次改动」，避免只写日记时新版打开被旧包覆盖 */
-      var yj=JSON.parse(localStorage.getItem('yinji_v1_'+DOC)||'null');
+      var yj=JSON.parse(localStorage.getItem('yinji_demo_v1_'+DOC)||'null');
       if(yj&&yj.updated)t=Math.max(t,Number(yj.updated)||0);
     }catch(e){}
     return t;
@@ -7097,7 +7105,7 @@ initVault();
    注意排除 yinji_sync_（同步模块自己的时间戳/脏标记），否则会自激循环。 */
 (function(){
   try{
-    var P=/^(resumeContent_v1_|resumeStyle_v1|resumeVault_v1|yinji_v1_)/;
+    var P=/^(resumeContent_demo_v1_|resumeStyle_demo_v1|resumeVault_demo_v1|resumeDataFile_demo_v1|resumeLocalFiles_demo_v1|yinji_demo_v1_)/;
     var orig=Storage.prototype.setItem;
     if(orig.__yjWrapped)return;
     function wrapped(k,v){
@@ -7156,7 +7164,7 @@ initVault();
   /* 检查更新：与小蛋仓同一套 GitHub Release latest 逻辑。
      公开分发仓库 dzlssg/yinji-dist 只放不含真实简历的「公开版」zip。
      APP_VERSION 与根目录 VERSION 保持一致，tools/verify.py 会校验，发版时两处一起改。 */
-  var APP_VERSION = String(window.YJ_APP_VERSION || '0.1.2').replace(/^v/i, '');
+  var APP_VERSION = String(window.YJ_APP_VERSION || '0.1.3').replace(/^v/i, '');
   var UPDATE_REPO = 'dzlssg/yinji-dist';
   var UPDATE_CACHE_KEY = 'yinji_demo_update_cache';
   /* 与小蛋仓同一个 Supabase 项目；印迹的数据存在独立表 yinji_data，不与小蛋仓混用。
@@ -7355,6 +7363,11 @@ initVault();
   }
   function pull(force) {
     if (!auth) return Promise.resolve(null);
+    /* YJ-EDIT-GUARD: 有未保存改动时，自动拉取绝不覆盖正在编辑的内容 */
+    if (!force) {
+      var asb = document.getElementById('appSave');
+      if (asb && asb.classList.contains('dirty')) return Promise.resolve('busy');
+    }
     var local = localState();
     var hasLocal = !!(local && ((local.days && Object.keys(local.days).length) ||
       (local.cards && local.cards.length)));
@@ -8146,7 +8159,7 @@ initVault();
 'use strict';
 var APP='印迹',BLOCKS=['edu','proj','campus','award'];
 var DOC=document.body.getAttribute('data-doc')||document.title||'resume';
-var KEY='yinji_v1_'+DOC;
+var KEY='yinji_demo_v1_'+DOC;
 var host=document.getElementById('yjHost'),tpl=document.getElementById('yjTpl');
 if(!host||!tpl)return;
 var ROOT=host.shadowRoot||host.attachShadow({mode:'open'});
@@ -9082,7 +9095,7 @@ window.__yinji={
    3) 发现新版本时，原有更新弹窗照常弹出，这里同步在卡片里写一行状态。 */
 (function(){
  'use strict';
- var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit8';
+ var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit9';
  var REL='https://github.com/dzlssg/yinji-dist/releases';
  var done=false,tries=0,hint=null,state=null,last='';
  function root(){var h=document.getElementById('yjHost');return h&&h.shadowRoot;}
@@ -9363,6 +9376,28 @@ window.__yinji={
   }).observe(document.documentElement,{attributes:true,attributeFilter:['style']});
  }
 })();
+
+/* ===== YJ-ZOOM-GUARD · 非简历页双指拦截（纯追加，不改任何原有逻辑） ===== */
+(function(){
+ 'use strict';
+ if(typeof window.TouchEvent==='undefined')return;
+ function isResume(){
+  var b=document.body,m=document.getElementById('vaultModal');
+  return b.classList.contains('panel-hidden')&&!b.classList.contains('yj-desk')
+    &&!(m&&m.classList.contains('open'));
+ }
+ function block(e){
+  if(e.touches&&e.touches.length>=2&&!isResume()&&e.cancelable)e.preventDefault();
+ }
+ document.addEventListener('touchstart',block,{passive:false});
+ document.addEventListener('touchmove',block,{passive:false});
+ ['gesturestart','gesturechange'].forEach(function(n){
+  document.addEventListener(n,function(e){
+   if(!isResume()&&e.cancelable)e.preventDefault();
+  },{passive:false});
+ });
+})();
+
 </script>
 </body>
 </html>
