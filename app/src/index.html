@@ -7156,7 +7156,7 @@ initVault();
   /* 检查更新：与小蛋仓同一套 GitHub Release latest 逻辑。
      公开分发仓库 dzlssg/yinji-dist 只放不含真实简历的「公开版」zip。
      APP_VERSION 与根目录 VERSION 保持一致，tools/verify.py 会校验，发版时两处一起改。 */
-  var APP_VERSION = String(window.YJ_APP_VERSION || '0.1.0').replace(/^v/i, '');
+  var APP_VERSION = String(window.YJ_APP_VERSION || '0.1.1').replace(/^v/i, '');
   var UPDATE_REPO = 'dzlssg/yinji-dist';
   var UPDATE_CACHE_KEY = 'yinji_demo_update_cache';
   /* 与小蛋仓同一个 Supabase 项目；印迹的数据存在独立表 yinji_data，不与小蛋仓混用。
@@ -7992,7 +7992,9 @@ initVault();
       var assets = d.assets || [];
       var pub = assets.filter(function (a) { return /公开版.*\.zip$/i.test(a.name || ''); })[0];
       var zip = assets.filter(function (a) { return /\.zip$/i.test(a.name || ''); })[0];
-      var asset = pub || zip;
+      var apk = assets.filter(function (a) { return /\.apk$/i.test(a.name || ''); })[0];
+      var exe = assets.filter(function (a) { return /\.exe$/i.test(a.name || ''); })[0];
+      var asset = pub || zip || apk || exe;
       if (compareVer(latest, APP_VERSION) > 0) {
         showUpdateDialog(latest, d.body || '', asset ? asset.browser_download_url : null, d.html_url);
         return true;
@@ -9080,7 +9082,7 @@ window.__yinji={
    3) 发现新版本时，原有更新弹窗照常弹出，这里同步在卡片里写一行状态。 */
 (function(){
  'use strict';
- var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit6';
+ var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit7';
  var REL='https://github.com/dzlssg/yinji-dist/releases';
  var done=false,tries=0,hint=null,state=null,last='';
  function root(){var h=document.getElementById('yjHost');return h&&h.shadowRoot;}
