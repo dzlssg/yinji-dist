@@ -1297,6 +1297,14 @@ body.yj-desk{overflow:hidden}
 #yjHost.vault-page #mscrim,#yjHost.vault-page #yjClose,
 #yjHost.vault-page .acct,#yjHost.vault-page .acct *,
 #yjHost.vault-page .side-foot,#yjHost.vault-page .side-foot *{pointer-events:auto}
+
+/* ===== YJ-STATUS-BAR · 手机端系统状态栏安全区（纯追加，原规则一条不删） =====
+   Android 全屏 WebView 从 y=0 绘制，状态栏图标会压住右上「保存」按钮。
+   只把这两个浮动按钮下移，顶部那段空白留给系统状态栏。 */
+@media screen and (max-width:600px){
+ body.yj-desk #appSave,#yjBack{top:46px!important}
+ body.yj-desk #appSave,#yjBack{top:calc(12px + max(env(safe-area-inset-top,0px),34px))!important}
+}
 </style>
 </head>
 <body class="editing original-mode" data-doc="resume" data-legacy="示例简历-外贸方向-可编辑版">
@@ -2906,6 +2914,14 @@ textarea.inp{resize:vertical;min-height:76px;line-height:1.65}
  .empty{padding:20px 14px;font-size:13px;border-radius:12px}
 }
 
+
+/* ===== YJ-STATUS-BAR · 手机端系统状态栏安全区（纯追加，原规则一条不删） =====
+   标题栏本身仍从 y=0 起、实色背景铺满状态栏区域，只把标题内容整体下移；
+   sticky 吸顶后留白依然保留，滚上来的内容也不会从顶部透出。 */
+@media screen and (max-width:600px){
+ .hd{padding-top:46px!important}
+ .hd{padding-top:calc(12px + max(env(safe-area-inset-top,0px),34px))!important}
+}
 </style>
 
 <div id="app">
