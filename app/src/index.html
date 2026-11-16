@@ -3005,6 +3005,10 @@ textarea.inp{resize:vertical;min-height:76px;line-height:1.65}
  border-color:rgba(24,160,88,.26)}
 #yjCloudCard #yjCloudState[data-s="err"]{background:#fdf0f0;color:#a12d2d;
  border-color:rgba(229,72,77,.26)}
+
+/* ===== YJ-VAULT-FIX · 信息库子页穿透（纯追加，原规则一条不删） ===== */
+:host(.vault-page) #app{background:transparent!important}
+:host(.vault-page) #main{background:transparent!important}
 </style>
 
 <div id="app">
@@ -9076,7 +9080,7 @@ window.__yinji={
    3) 发现新版本时，原有更新弹窗照常弹出，这里同步在卡片里写一行状态。 */
 (function(){
  'use strict';
- var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit5';
+ var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit6';
  var REL='https://github.com/dzlssg/yinji-dist/releases';
  var done=false,tries=0,hint=null,state=null,last='';
  function root(){var h=document.getElementById('yjHost');return h&&h.shadowRoot;}
