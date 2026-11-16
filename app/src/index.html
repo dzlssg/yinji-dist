@@ -5237,7 +5237,7 @@ function initVault(){
     for(k in v)if(Object.prototype.hasOwnProperty.call(v,k)&&String(v[k]||'').trim()!=='')m[k]=v[k];
     return m;
   }
-  function dirName(id){var n='';arr(DB.targets).forEach(function(t){if(t.id===id)n=t.name;});return n;}
+  function dirName(id){var n='';arr(DB.targets).forEach(function(t){if(t.id===id)n=intentLabel(t);});return n;}
   function variantFields(type){
     return {info:['text'],skills:['sub'],eval:['text'],paras:['text'],
             entries:['title','year'],blocks:['title','year','sub','desc'],
@@ -5637,7 +5637,7 @@ function initVault(){
            '<span>'+(nvar?'已为 '+nvar+' 个方向定制':'不同方向写不同说法')+'</span><i>›</i></button>'+
          '<div class="ve-var-body"><div class="ve-var-bar"><select data-vsel>'+
          arr(DB.targets).map(function(tg){
-           return '<option value="'+esc(tg.id)+'"'+(tg.id===editVariantDir?' selected':'')+'>'+esc(tg.name)+'</option>';
+           return '<option value="'+esc(tg.id)+'"'+(tg.id===editVariantDir?' selected':'')+'>'+esc(intentLabel(tg))+'</option>';
          }).join('')+
          '</select><button type="button" data-vclear>清除该方向</button></div><div class="ve-var-fields">'+
          vf.map(function(k){
@@ -7156,7 +7156,7 @@ initVault();
   /* 检查更新：与小蛋仓同一套 GitHub Release latest 逻辑。
      公开分发仓库 dzlssg/yinji-dist 只放不含真实简历的「公开版」zip。
      APP_VERSION 与根目录 VERSION 保持一致，tools/verify.py 会校验，发版时两处一起改。 */
-  var APP_VERSION = String(window.YJ_APP_VERSION || '0.1.1').replace(/^v/i, '');
+  var APP_VERSION = String(window.YJ_APP_VERSION || '0.1.2').replace(/^v/i, '');
   var UPDATE_REPO = 'dzlssg/yinji-dist';
   var UPDATE_CACHE_KEY = 'yinji_demo_update_cache';
   /* 与小蛋仓同一个 Supabase 项目；印迹的数据存在独立表 yinji_data，不与小蛋仓混用。
@@ -9082,7 +9082,7 @@ window.__yinji={
    3) 发现新版本时，原有更新弹窗照常弹出，这里同步在卡片里写一行状态。 */
 (function(){
  'use strict';
- var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit7';
+ var DL='https://archives-notified-upcoming-denver.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit8';
  var REL='https://github.com/dzlssg/yinji-dist/releases';
  var done=false,tries=0,hint=null,state=null,last='';
  function root(){var h=document.getElementById('yjHost');return h&&h.shadowRoot;}
