@@ -58,7 +58,7 @@ jobs:
         run: |
           set -eu
           test "$(wc -c < app/src/index.html)" -gt 500000
-          node -e "const c=require('crypto'),f=require('fs');const s=f.readFileSync('app/src/index.html','utf8').split(String.fromCharCode(13)).join('');const h=c.createHash('sha256').update(s,'utf8').digest('hex');if(h!=='c0451ff7dcf44fb8b6a1e6602c82dad46bb81747d367896ad8330b79784488b3'){console.error('demo page hash mismatch',h);process.exit(1)}console.log('demo page verified',h)"
+          node -e "const c=require('crypto'),f=require('fs');const s=f.readFileSync('app/src/index.html','utf8').split(String.fromCharCode(13)).join('');const h=c.createHash('sha256').update(s,'utf8').digest('hex');if(h!=='002cd32a622a9373cef67adab5022c944e0c917b6e3d18e55db9f72eb17281b2'){console.error('demo page hash mismatch',h);process.exit(1)}console.log('demo page verified',h)"
           grep -q '林知远' app/src/index.html
           echo "demo page OK: $(wc -c < app/src/index.html) bytes"
       - name: Generate app icons
@@ -114,7 +114,7 @@ jobs:
         run: |
           set -eu
           test "$(wc -c < app/src/index.html)" -gt 500000
-          node -e "const c=require('crypto'),f=require('fs');const s=f.readFileSync('app/src/index.html','utf8').split(String.fromCharCode(13)).join('');const h=c.createHash('sha256').update(s,'utf8').digest('hex');if(h!=='c0451ff7dcf44fb8b6a1e6602c82dad46bb81747d367896ad8330b79784488b3'){console.error('demo page hash mismatch',h);process.exit(1)}console.log('demo page verified',h)"
+          node -e "const c=require('crypto'),f=require('fs');const s=f.readFileSync('app/src/index.html','utf8').split(String.fromCharCode(13)).join('');const h=c.createHash('sha256').update(s,'utf8').digest('hex');if(h!=='002cd32a622a9373cef67adab5022c944e0c917b6e3d18e55db9f72eb17281b2'){console.error('demo page hash mismatch',h);process.exit(1)}console.log('demo page verified',h)"
           grep -q '林知远' app/src/index.html
       - name: Generate app icons
         working-directory: app/src-tauri

@@ -1298,12 +1298,46 @@ body.yj-desk{overflow:hidden}
 #yjHost.vault-page .acct,#yjHost.vault-page .acct *,
 #yjHost.vault-page .side-foot,#yjHost.vault-page .side-foot *{pointer-events:auto}
 
-/* ===== YJ-STATUS-BAR · 手机端系统状态栏安全区（纯追加，原规则一条不删） =====
-   Android 全屏 WebView 从 y=0 绘制，状态栏图标会压住右上「保存」按钮。
-   只把这两个浮动按钮下移，顶部那段空白留给系统状态栏。 */
+/* ===== YJ-FIT · 手机屏幕自动适配（纯追加，原规则一条不删） =====
+   变量由页面末尾 YJ-FIT 运行时按本机屏幕动态写入，换机型 / 旋转 / 分屏自动重排。 */
+:root{
+ --yj-sb:0px;             /* 顶部系统状态栏安全区 */
+ --yj-gb:0px;             /* 底部手势区安全区 */
+ --yj-gutter:16px;        /* 左右统一安全边距 */
+ --yj-status-bg:#f2f2f7;  /* 状态栏底色，随当前页面自动切换 */
+}
 @media screen and (max-width:600px){
- body.yj-desk #appSave,#yjBack{top:46px!important}
- body.yj-desk #appSave,#yjBack{top:calc(12px + max(env(safe-area-inset-top,0px),34px))!important}
+ /* ① 系统状态栏独占一条纯色区：任何页面内容、滚动内容都不许画到这里 */
+ body::before{content:'';position:fixed;left:0;right:0;top:0;height:var(--yj-sb);
+  background:var(--yj-status-bg);z-index:280;pointer-events:none}
+ /* ② 简历页：A4 与所有普通流内容整体下移，不再顶在 y=0；
+    底部留白放 body 上（不受 .page 的 zoom 缩放影响），工具条不会压住纸 */
+ body{padding-top:calc(var(--yj-sb) + 14px)!important;
+  padding-bottom:calc(150px + var(--yj-gb))!important}
+ .page{margin:14px auto 0!important}
+ /* ③ 工作台全屏容器：上避状态栏、下避手势区 */
+ #yjHost{top:var(--yj-sb)!important;bottom:var(--yj-gb)!important;height:auto!important}
+ /* ④ 全部固定悬浮控件：左右统一安全边距，上下避开系统区 */
+ #appSave{z-index:310!important}
+ /* 工作台态本来就在工作台里，「回到工作台」按钮会与右上保存胶囊叠在一起，收起 */
+ body.yj-desk #yjBack{display:none!important}
+ #yjBack{top:calc(var(--yj-sb) + 12px)!important;right:var(--yj-gutter)!important}
+ body.yj-desk #appSave{top:calc(var(--yj-sb) + 12px)!important;
+  right:var(--yj-gutter)!important}
+ body:not(.yj-desk) #appSave{bottom:calc(var(--yj-gb) + 16px)!important;
+  right:var(--yj-gutter)!important}
+ #panelBtn{left:var(--yj-gutter)!important;bottom:calc(var(--yj-gb) + 16px)!important}
+ #zoomDock{left:var(--yj-gutter)!important;bottom:calc(var(--yj-gb) + 60px)!important}
+ #histDock{right:var(--yj-gutter)!important;bottom:calc(var(--yj-gb) + 60px)!important}
+ /* ⑤ 抽屉 / 弹层也不许压住状态栏与手势区 */
+ #formatPanel{top:var(--yj-sb)!important;
+  height:calc(100dvh - var(--yj-sb) - var(--yj-gb))!important}
+ #vaultModal.open,#shareModal.open,#dataViewModal.open{top:var(--yj-sb)!important}
+}
+@media print{
+ body::before{display:none!important}
+ body{padding-top:0!important;padding-bottom:0!important}
+ .page{margin:0!important}
 }
 </style>
 </head>
@@ -2915,12 +2949,27 @@ textarea.inp{resize:vertical;min-height:76px;line-height:1.65}
 }
 
 
-/* ===== YJ-STATUS-BAR · 手机端系统状态栏安全区（纯追加，原规则一条不删） =====
-   标题栏本身仍从 y=0 起、实色背景铺满状态栏区域，只把标题内容整体下移；
-   sticky 吸顶后留白依然保留，滚上来的内容也不会从顶部透出。 */
+/* ===== YJ-FIT · 工作台自动适配（纯追加，原规则一条不删） =====
+   #yjHost 已从状态栏下方开始，这里只负责把内容边距与区块间距按屏幕拉开，
+   并把底部六项 Tab 抬到手势条上方。 */
 @media screen and (max-width:600px){
- .hd{padding-top:46px!important}
- .hd{padding-top:calc(12px + max(env(safe-area-inset-top,0px),34px))!important}
+ #app{height:100%!important;min-height:0!important}
+ #main{padding:16px var(--yj-gutter) calc(112px + var(--yj-gb))!important}
+ .hd{margin:-16px calc(-1 * var(--yj-gutter)) 18px!important;
+  padding:14px var(--yj-gutter) 14px!important;
+  padding-right:100px!important;gap:10px;
+  background:#fbfbfd!important;z-index:30!important}
+ .hd::before{height:var(--yj-sb);background:#fbfbfd}
+ .hd h2{font-size:23px}
+ .pagetabs{margin-top:14px}
+ .subbar{margin:0 0 16px}
+ .stat{gap:12px;margin-bottom:16px}
+ .card{padding:18px;margin-bottom:16px}
+ .addbox,.row{margin-bottom:14px}
+ .mods{gap:12px}
+ /* 底部 Tab 栏：整体抬到手势条之上，左右同步安全边距 */
+ .mtab{bottom:var(--yj-gb)!important;
+  padding:8px var(--yj-gutter) calc(8px + var(--yj-gb))!important}
 }
 </style>
 
@@ -8841,6 +8890,149 @@ window.__yinji={
   weekText:function(){return weekText(weekInfo(curWeekStart));},
   root:function(){return ROOT;}
 };
+})();
+</script>
+
+<script>
+/* ===== YJ-FIT · 屏幕自动适配运行时（纯追加，不改动任何原有逻辑） =====
+   1) 系统安全区：env(safe-area-inset-*) 优先；Android WebView 常报 0，
+      用屏幕短边估算状态栏（26~44px）与手势区（16px）兜底。
+   2) 左右安全边距按屏宽自动 clamp(18~24px)；状态栏底色随当前页面切换。
+   3) resize / 横竖屏 / 可视视口 / 页面切换时自动重算。
+   4) 简历 A4 在「状态栏 ~ 底部工具条」之间自动垂直居中。
+   5) 设置页提供「屏幕适配」卡片：显示当前参数、可微调顶部留白、一键重新适配。 */
+(function(){
+ 'use strict';
+ var RS=document.documentElement.style;
+ var EXTRA_KEY='yj_demo_fit_extra';
+ var manual=false;   /* 用户手动调过缩放后，自动适配不再改他的倍率 */
+ function envPx(n){
+  var d=document.createElement('div');
+  d.style.cssText='position:fixed;top:env('+n+',0px);left:0;width:0;height:0;'+
+                  'opacity:0;pointer-events:none';
+  document.body.appendChild(d);
+  var v=parseFloat(getComputedStyle(d).top)||0;
+  if(d.parentNode)d.parentNode.removeChild(d);
+  return v;
+ }
+ function num(v){var n=parseFloat(v);return isNaN(n)?0:n;}
+ function fit(){
+  var w=window.innerWidth||document.documentElement.clientWidth||390;
+  var h=window.innerHeight||document.documentElement.clientHeight||844;
+  var short=Math.min(w,h);
+  if(short>600){
+   RS.setProperty('--yj-sb','0px');RS.setProperty('--yj-gb','0px');
+   RS.setProperty('--yj-gutter','16px');
+   RS.setProperty('--yj-status-bg','#f2f2f7');
+   var p0=document.querySelector('.page');
+   if(p0){p0.style.removeProperty('margin-top');p0.style.removeProperty('margin-bottom');}
+   updateCard();return;
+  }
+  var eT=envPx('safe-area-inset-top'),eB=envPx('safe-area-inset-bottom');
+  /* 屏幕短边（CSS px）* 0.085 ≈ 各家 Android 状态栏高度，夹在 26~44px；
+     系统若真给了 safe-area 值就优先用系统值（iOS / 挖孔屏机型）。 */
+  var est=Math.max(26,Math.min(44,Math.round(short*0.085)));
+  var sb=Math.max(eT,est),gb=Math.max(eB,16);
+  var extra=num(localStorage.getItem(EXTRA_KEY));
+  RS.setProperty('--yj-sb',(sb+extra).toFixed(1)+'px');
+  RS.setProperty('--yj-gb',gb.toFixed(1)+'px');
+  RS.setProperty('--yj-gutter',Math.max(18,Math.min(24,Math.round(w*0.052)))+'px');
+  RS.setProperty('--yj-status-bg',
+   document.body.classList.contains('yj-desk')?'#fbfbfd':'#f2f2f7');
+  autoZoom(w,h,sb+extra,gb);
+  centerPage();
+  updateCard();
+ }
+ /* A4 按「可用宽 / 可用高」双重适应：左右各留一个安全边距，
+    高度也保证整页落在状态栏与底部工具条之间；手动调过倍率就交给用户。 */
+ function autoZoom(w,h,sb,gb){
+  if(manual)return;
+  try{
+   var gut=num(getComputedStyle(document.documentElement).getPropertyValue('--yj-gutter'))||20;
+   var z=Math.min((w-2*gut)/794,(h-sb-14-130-gb)/1122);
+   z=Math.max(.3,Math.min(1,z));
+   RS.setProperty('--yj-page-zoom',z.toFixed(3));
+   var lb=document.getElementById('zoomVal');
+   if(lb)lb.textContent=Math.round(z*100)+'%';
+  }catch(e){}
+ }
+ function centerPage(){
+  try{
+   var p=document.querySelector('.page');
+   if(!p||document.body.classList.contains('yj-desk'))return;
+   var cs=getComputedStyle(document.documentElement);
+   var zoom=num(cs.getPropertyValue('--yj-page-zoom'))||1;
+   var sb=num(cs.getPropertyValue('--yj-sb')),gb=num(cs.getPropertyValue('--yj-gb'));
+   var avail=(window.innerHeight||844)-sb-14-130-gb;
+   var ph=p.getBoundingClientRect().height;
+   var gap=Math.max(0,(avail-ph)/2);
+   /* .page 带 zoom，margin 会被一起缩放，这里先除回 zoom；
+      用 important 才能盖过同一段落里 .page{margin:...!important} */
+   p.style.setProperty('margin-top',(gap/zoom).toFixed(1)+'px','important');
+   p.style.setProperty('margin-bottom','0px','important');
+  }catch(e){}
+ }
+ function card(){
+  var host=document.getElementById('yjHost');
+  var R=host&&host.shadowRoot;
+  return R?R.getElementById('yjFitCard'):null;
+ }
+ function updateCard(){
+  var c=card();if(!c)return;
+  var cs=getComputedStyle(document.documentElement),i=c.querySelector('#yjFitInfo');
+  if(i)i.textContent='已按本机屏幕自动适配 · 状态栏 '+cs.getPropertyValue('--yj-sb').trim()+
+   ' · 左右边距 '+cs.getPropertyValue('--yj-gutter').trim()+
+   ' · 手势区 '+cs.getPropertyValue('--yj-gb').trim()+'（旋转屏幕会自动重算）';
+  var s=c.querySelector('#yjFitExtra'),v=c.querySelector('#yjFitExtraVal');
+  if(s)s.value=String(num(localStorage.getItem(EXTRA_KEY)));
+  if(v)v.textContent='+'+num(localStorage.getItem(EXTRA_KEY))+'px';
+ }
+ function mountCard(){
+  var host=document.getElementById('yjHost');
+  var R=host&&host.shadowRoot,sec=R&&R.getElementById('v-sync');
+  if(!sec||R.getElementById('yjFitCard'))return false;
+  var d=R.ownerDocument.createElement('div');
+  d.className='card';d.id='yjFitCard';
+  d.innerHTML='<h3>屏幕适配 <span class="n">自动</span></h3>'+
+   '<div class="tiny" id="yjFitInfo">已按本机屏幕自动适配</div>'+
+   '<div class="row" style="align-items:center;gap:10px;margin-top:10px">'+
+   '<span class="tiny" style="white-space:nowrap">顶部留白</span>'+
+   '<input type="range" id="yjFitExtra" min="0" max="24" step="2" value="0" '+
+   'style="flex:1;min-width:0;accent-color:#b45309">'+
+   '<span class="tiny" id="yjFitExtraVal" style="white-space:nowrap">+0px</span></div>'+
+   '<div class="row" style="margin-top:10px">'+
+   '<button class="btn" id="yjFitReset" type="button">重新适配</button></div>';
+  sec.insertBefore(d,sec.children[1]||null);
+  d.querySelector('#yjFitExtra').addEventListener('input',function(ev){
+   localStorage.setItem(EXTRA_KEY,String(num(ev.target.value)));fit();
+  });
+  d.querySelector('#yjFitReset').addEventListener('click',function(){
+   localStorage.setItem(EXTRA_KEY,'0');fit();
+  });
+  updateCard();return true;
+ }
+ fit();
+ window.addEventListener('resize',fit);
+ window.addEventListener('orientationchange',function(){setTimeout(fit,300)});
+ if(window.visualViewport)window.visualViewport.addEventListener('resize',fit);
+ if(window.MutationObserver){
+  new MutationObserver(function(){fit();mountCard();}).observe(document.body,
+   {attributes:true,attributeFilter:['class']});
+  new MutationObserver(centerPage).observe(document.documentElement,
+   {attributes:true,attributeFilter:['style']});
+ }
+ ['zoomIn','zoomOut'].forEach(function(id){
+  var b=document.getElementById(id);
+  if(b)b.addEventListener('click',function(){manual=true;setTimeout(centerPage,60)});
+ });
+ var zf=document.getElementById('zoomFit');
+ if(zf)zf.addEventListener('click',function(){manual=false;setTimeout(fit,60)});
+ var tries=0;
+ function tryMount(){if(!mountCard()&&tries++<15)setTimeout(tryMount,400);}
+ if(document.readyState==='loading')
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(tryMount,120)});
+ else setTimeout(tryMount,120);
+ window.__yjFit=fit;
 })();
 </script>
 </body>
