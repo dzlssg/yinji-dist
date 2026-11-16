@@ -1339,6 +1339,13 @@ body.yj-desk{overflow:hidden}
  body{padding-top:0!important;padding-bottom:0!important}
  .page{margin:0!important}
 }
+
+/* ===== YJ-SYNC-FEEDBACK · 登录 / 云同步提示可见（纯追加） =====
+   同步模块的 toast() 只操作主文档 #toast，而 #yjHost 是 z-index:200 的全屏工作台；
+   原 #toast 只有 z-index:99，且 .on 的显示规则没落到主文档，
+   于是「已登录」「已同步到云端」「连不上云端」全被工作台盖住，看起来像没反应。 */
+#toast{z-index:1200!important}
+#toast.on{opacity:1!important;transform:translate(-50%,0)!important}
 </style>
 </head>
 <body class="editing original-mode" data-doc="resume" data-legacy="示例简历-外贸方向-可编辑版">
@@ -2971,6 +2978,33 @@ textarea.inp{resize:vertical;min-height:76px;line-height:1.65}
  .mtab{bottom:var(--yj-gb)!important;
   padding:8px var(--yj-gutter) calc(8px + var(--yj-gb))!important}
 }
+
+/* ===== YJ-UPDATE-FEEDBACK · 检查更新可见反馈（纯追加） =====
+   原逻辑只给 Shadow 里的 #toast 加 .on 类，但「#toast.on{opacity:1}」这条
+   显示规则写在主文档样式里，进不了 Shadow DOM，于是所有提示都看不见，
+   点「检查更新」就像没反应。这里在 Shadow 内补齐显示规则与卡片状态条样式。 */
+#toast.on{opacity:1!important;transform:translate(-50%,0)!important;z-index:9999!important}
+#yjUpdateCard #yjUpdState{margin-top:12px;padding:11px 13px;border-radius:12px;
+ font-size:12.5px;line-height:1.65;background:#f2f2f7;color:#6e6e73;
+ border:1px solid rgba(0,0,0,.05);word-break:break-word}
+#yjUpdateCard #yjUpdState[data-s="busy"]{background:#fff8e8;color:#8a5a00;
+ border-color:rgba(240,180,41,.32)}
+#yjUpdateCard #yjUpdState[data-s="ok"]{background:#edf8f1;color:#146c43;
+ border-color:rgba(24,160,88,.26)}
+#yjUpdateCard #yjUpdState[data-s="err"]{background:#fdf0f0;color:#a12d2d;
+ border-color:rgba(229,72,77,.26)}
+#yjUpdateCard #yjUpdLinks{margin-top:9px;font-size:11.5px;line-height:1.8}
+#yjUpdateCard #yjUpdLinks a{color:#0a58ca;text-decoration:underline;cursor:pointer}
+/* 云端同步卡片：与检查更新同款的结果状态条 */
+#yjCloudCard #yjCloudState{margin-top:12px;padding:11px 13px;border-radius:12px;
+ font-size:12.5px;line-height:1.65;background:#f2f2f7;color:#6e6e73;
+ border:1px solid rgba(0,0,0,.05);word-break:break-word}
+#yjCloudCard #yjCloudState[data-s="busy"]{background:#fff8e8;color:#8a5a00;
+ border-color:rgba(240,180,41,.32)}
+#yjCloudCard #yjCloudState[data-s="ok"]{background:#edf8f1;color:#146c43;
+ border-color:rgba(24,160,88,.26)}
+#yjCloudCard #yjCloudState[data-s="err"]{background:#fdf0f0;color:#a12d2d;
+ border-color:rgba(229,72,77,.26)}
 </style>
 
 <div id="app">
@@ -9033,6 +9067,171 @@ window.__yinji={
   document.addEventListener('DOMContentLoaded',function(){setTimeout(tryMount,120)});
  else setTimeout(tryMount,120);
  window.__yjFit=fit;
+})();
+
+/* ===== YJ-UPDATE-FEEDBACK · 检查更新可见反馈（纯追加，不改任何原有逻辑） =====
+   1) 按钮一按，卡片里立刻显示「正在检查…」；结果用醒目色块写在按钮下方，
+      不再只依赖那个不显示的 toast。
+   2) 给 GitHub 检查请求加 8 秒超时，国内网络连不上时给明确原因与下载页入口。
+   3) 发现新版本时，原有更新弹窗照常弹出，这里同步在卡片里写一行状态。 */
+(function(){
+ 'use strict';
+ var DL='https://associated-smoking-salon-infants.trycloudflare.com/_pk/demo-83dc96bc438751/full.html?v=fit3';
+ var REL='https://github.com/dzlssg/yinji-dist/releases';
+ var done=false,tries=0,hint=null,state=null,last='';
+ function root(){var h=document.getElementById('yjHost');return h&&h.shadowRoot;}
+ function setState(s,t){if(!state)return;state.setAttribute('data-s',s||'');state.textContent=t;}
+ function openUrl(u){try{var w=window.open(u,'_blank','noopener');if(!w)window.location.href=u;}
+  catch(e){try{window.location.href=u;}catch(x){}}}
+ function init(){
+  var R=root();if(!R)return false;
+  var card=R.getElementById('yjUpdateCard');if(!card)return false;
+  hint=R.getElementById('yjUpdateHint');
+  var btn=R.getElementById('yjUpdateBtn');
+  if(!hint||!btn)return false;
+  state=R.getElementById('yjUpdState');
+  if(!state){
+   state=R.ownerDocument.createElement('div');
+   state.id='yjUpdState';state.setAttribute('data-s','');
+   state.textContent='点「检查更新」即可查看线上是否有新版本。';
+   hint.parentNode.insertBefore(state,hint.nextSibling);
+   var links=R.ownerDocument.createElement('div');
+   links.id='yjUpdLinks';
+   links.innerHTML='<a href="'+DL+'" target="_blank" rel="noopener">打开下载页（安卓 / 电脑安装包）</a> · '+
+    '<a href="'+REL+'" target="_blank" rel="noopener">GitHub Release</a>';
+   state.parentNode.insertBefore(links,state.nextSibling);
+   links.addEventListener('click',function(e){
+    var a=e.target.closest&&e.target.closest('a[href]');
+    if(a){e.preventDefault();openUrl(a.getAttribute('href'));}
+   });
+  }
+  last=String(hint.textContent||'').trim();
+  card.addEventListener('click',function(e){
+   var b=e.target.closest&&e.target.closest('[data-yj="checkUpdate"]');
+   if(!b)return;
+   setState('busy','正在连接 GitHub 检查更新…（最多 8 秒）');
+   try{state.scrollIntoView({block:'center',behavior:'smooth'});}catch(x){}
+  },true);
+  if(window.MutationObserver){
+   new MutationObserver(function(){
+    var t=String(hint.textContent||'').trim();
+    if(!t||t===last)return;last=t;
+    if(t.indexOf('当前已是最新版本')===0)
+     setState('ok',t+' 刚才检查过，线上最新也是这个版本，无需更新。');
+    else if(t.indexOf('检查更新失败')===0)
+     setState('err',t+' 国内网络常连不上 GitHub，可点下面「打开下载页」直接看最新安装包。');
+    else setState('',t);
+   }).observe(hint,{childList:true,characterData:true,subtree:true});
+   var mask=document.getElementById('yjUpdateMask');
+   if(mask)new MutationObserver(function(){
+    if(!mask.classList.contains('on'))return;
+    var ti=document.getElementById('yjUpdateTitle');
+    var txt=ti?String(ti.textContent||''):'';
+    if(txt.indexOf('发现新版本')>=0)setState('ok','发现新版本：'+txt+'。请在弹窗里点「立即下载」。');
+   }).observe(mask,{attributes:true,attributeFilter:['class']});
+  }
+  done=true;return true;
+ }
+ /* 只给「检查更新」接口加超时，其他网络请求原样透传 */
+ try{
+  var raw=window.fetch;
+  window.fetch=function(u,o){
+   var url=String((u&&u.url)||u||'');
+   var isUpd=url.indexOf('api.github.com')>=0&&url.indexOf('/releases/latest')>=0;
+   if(!isUpd||!window.AbortController||(o&&o.signal))return raw.apply(window,arguments);
+   var c=new AbortController();
+   var tm=setTimeout(function(){try{c.abort();}catch(e){}},8000);
+   var args=Array.prototype.slice.call(arguments);
+   args[1]=Object.assign({},o||{},{signal:c.signal});
+   return raw.apply(window,args).then(function(r){clearTimeout(tm);return r;},function(e){
+    clearTimeout(tm);
+    var m=String((e&&e.message)||'').toLowerCase();
+    if(e&&(e.name==='AbortError'||m.indexOf('abort')>=0))
+     throw new Error('连接 GitHub 超时（8 秒）');
+    throw e;
+   });
+  };
+ }catch(e){}
+ function tryInit(){if(done)return;if(!init()&&tries++<25)setTimeout(tryInit,300);}
+ if(document.readyState==='loading')
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(tryInit,150);});
+ else setTimeout(tryInit,150);
+})();
+
+/* ===== YJ-SYNC-FEEDBACK · 登录 / 云同步可见反馈（纯追加，不改任何原有逻辑） =====
+   实测：登录、推/拉云端其实都成功（卡片会变成「云端已连接」），
+   但同步模块的 toast() 用的主文档 #toast 被 z-index:200 的工作台盖住，
+   用户看不到任何结果，才以为「没反应」。这里做三件事：
+   1) 云端同步卡片里加一条醒目状态条，按钮一按立刻显示进度；
+   2) 把云端状态变化与所有 toast 文字同步写进状态条；
+   3) 云端请求超过 8 秒未回来时显示「正在连接云端…」，不再像卡死。 */
+(function(){
+ 'use strict';
+ var done=false,tries=0,state=null,card=null,stat=null,lastStat='',lastToast='';
+ function root(){var h=document.getElementById('yjHost');return h&&h.shadowRoot;}
+ function setState(s,t){if(!state)return;state.setAttribute('data-s',s||'');state.textContent=t;}
+ function init(){
+  var R=root();if(!R)return false;
+  card=R.getElementById('yjCloudCard');if(!card)return false;
+  stat=card.querySelector('#yjCloudStat');if(!stat)return false;
+  state=R.getElementById('yjCloudState');
+  if(!state){
+   state=R.ownerDocument.createElement('div');
+   state.id='yjCloudState';state.setAttribute('data-s','');
+   state.textContent='登录后可在这台设备与云端之间同步；所有结果都会显示在这里。';
+   card.appendChild(state);
+  }
+  lastStat=String(stat.textContent||'').trim();
+  card.addEventListener('click',function(e){
+   var b=e.target.closest&&e.target.closest('button[data-yj]');
+   if(!b)return;
+   var a=b.getAttribute('data-yj');
+   if(a==='push')setState('busy','正在同步到云端…');
+   else if(a==='pull')setState('busy','正在从云端拉取…');
+   else if(a==='sync')setState('busy','正在智能同步…');
+   else return;
+   try{state.scrollIntoView({block:'center',behavior:'smooth'});}catch(x){}
+  },true);
+  var docToast=document.getElementById('toast');
+  if(window.MutationObserver){
+   new MutationObserver(function(){
+    var t=String(stat.textContent||'').trim();
+    if(!t||t===lastStat)return;lastStat=t;
+    if(t.indexOf('未登录')===0)setState('','未登录：点上面的按钮登录后会自动同步。');
+    else if(t.indexOf('同步中')>=0)setState('busy','正在同步到云端…');
+    else if(t.indexOf('云端已连接')>=0)setState('ok',t+'　·　登录 / 同步已完成。');
+    else setState('err',t);
+   }).observe(stat,{childList:true,characterData:true,subtree:true});
+   if(docToast)new MutationObserver(function(){
+    var t=String(docToast.textContent||'').trim();
+    if(!t||t===lastToast)return;lastToast=t;
+    if(t.indexOf('失败')>=0||t.indexOf('连不上')>=0||t.indexOf('未建')>=0||
+       t.indexOf('过期')>=0||t.indexOf('异常')>=0)
+     setState('err',t+'　·　本地数据照常保存，不受影响，可稍后重试。');
+    else if(t.indexOf('请先登录')>=0)
+     setState('busy','请先登录账号：在弹层里输入邮箱和密码即可。');
+    else setState('ok',t);
+   }).observe(docToast,{childList:true,characterData:true,subtree:true});
+  }
+  /* 只加一条可见进度，不改请求参数、不中断请求 */
+  try{
+   var raw=window.fetch;
+   window.fetch=function(u,o){
+    var url=String((u&&u.url)||u||'');
+    if(url.indexOf('supabase.co')<0)return raw.apply(window,arguments);
+    var tm=setTimeout(function(){
+     setState('busy','正在连接云端…（国内网络可能较慢，最多约 90 秒）本地数据照常保存，不受影响。');
+    },8000);
+    return raw.apply(window,arguments).then(function(r){clearTimeout(tm);return r;},
+     function(e){clearTimeout(tm);return Promise.reject(e);});
+   };
+  }catch(e){}
+  done=true;return true;
+ }
+ function tryInit(){if(done)return;if(!init()&&tries++<25)setTimeout(tryInit,300);}
+ if(document.readyState==='loading')
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(tryInit,180);});
+ else setTimeout(tryInit,180);
 })();
 </script>
 </body>
