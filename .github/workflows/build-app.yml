@@ -1,43 +1,51 @@
-name: Build Yinji Original App
+name: Build Yinji Demo App
 
-# 从 0 重做：前端只有主人原来弄好的那一个自包含 HTML，不做任何适配补丁。
-# 页面含真实姓名，只能以密文入库；口令与产物都走本机一次性隧道交接。
+# 示例版：页面里所有个人信息均为虚构，不含任何真实个人资料。
+# 前端明文入库，构建产物直接公开上传 Release；不再需要一次性密钥 / 隧道交接。
 on:
   push:
     branches: [main]
     paths:
       - 'app/.rebuild'
+      - 'app/src/index.html'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 env:
-  DATA_URL: https://prevent-changelog-adams-florists.trycloudflare.com/_pk/v2-aa80ec71639b57afcea44be552b2b06d
-  KEY_FILE: key.txt
-  ENC_TOOL: app/tools/enc.mjs
   TAG: v0.1.0
+  EXE_ASSET: yinji-demo-v0.1.0.exe
+  APK_ASSET: yinji-demo-v0.1.0.apk
 
 jobs:
-  purge-old-release:
-    name: Remove wrong v1 assets from public release
+  prepare:
+    name: Clean legacy assets and ensure release
     runs-on: ubuntu-latest
     steps:
-      - name: Delete legacy installers
+      - uses: actions/checkout@v4
+      - name: Ensure release exists and drop private / legacy assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -u
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "印迹 v0.1.0 · 示例版" \
+              --notes "全虚构示例数据，不含任何真实个人信息"
           for n in "_0.1.0_x64-setup.exe" "app-universal-debug.apk" \
                    "yinji-public-v0.1.0.zip" "yinji-full-v0.1.0.exe.enc" \
-                   "yinji-full-v0.1.0.apk.enc"; do
-            if gh release delete-asset "$TAG" "$n" --yes 2>/dev/null; then
+                   "yinji-full-v0.1.0.apk.enc" "yinji-orig-v0.1.0.exe.enc" \
+                   "yinji-orig-v0.1.0.apk.enc" "yinji-orig-v0.1.0.exe" \
+                   "yinji-orig-v0.1.0.apk"; do
+            if gh release delete-asset "$TAG" "$n" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null; then
               echo "deleted legacy $n"
             fi
           done
 
   windows:
-    name: Original Windows installer
+    name: Demo Windows installer
+    needs: prepare
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,15 +53,14 @@ jobs:
         with:
           node-version: '20'
       - uses: dtolnay/rust-toolchain@stable
-      - name: Fetch one-time key and decrypt the ORIGINAL page
+      - name: Verify the fictional demo page (SHA-256 pinned)
         shell: bash
         run: |
           set -eu
-          curl -fsSL --retry 6 --retry-all-errors --max-time 60 "$DATA_URL/key.txt" -o "$KEY_FILE"
-          node "$ENC_TOOL" decrypt app/src/index.html.enc app/src/index.html "$KEY_FILE"
           test "$(wc -c < app/src/index.html)" -gt 500000
-          rm -f app/src/index.html.enc
-          echo "original page bytes: $(wc -c < app/src/index.html)"
+          node -e "const c=require('crypto'),f=require('fs');const h=c.createHash('sha256').update(f.readFileSync('app/src/index.html')).digest('hex');if(h!=='83dc96bc4387516138d1366840782b40bad75463b0621c7f228852fb07a2bb60'){console.error('demo page hash mismatch',h);process.exit(1)}console.log('demo page verified',h)"
+          grep -q '林知远' app/src/index.html
+          echo "demo page OK: $(wc -c < app/src/index.html) bytes"
       - name: Generate app icons
         working-directory: app/src-tauri
         run: npx --yes @tauri-apps/cli@latest icon ../src/icon.svg
@@ -63,32 +70,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: app
-      - name: Encrypt installer and hand off
+      - name: Upload EXE to public Release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ASSET: yinji-orig-v0.1.0.exe.enc
-          DONE: done-win.txt
         run: |
           set -eu
           EXE=$(find app/src-tauri/target/release/bundle/nsis -name '*.exe' -type f | head -1)
           test -n "$EXE"
-          mkdir -p out
-          node "$ENC_TOOL" encrypt "$EXE" "out/$ASSET" "$KEY_FILE"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "印迹 v0.1.0" --notes "印迹原版完整安装包"
-          gh release upload "$TAG" "out/$ASSET" --clobber
-          echo "handed off $ASSET"
-          for i in $(seq 1 60); do
-            if curl -fsS --max-time 10 "$DATA_URL/$DONE" -o /dev/null 2>/dev/null; then
-              gh release delete-asset "$TAG" "$ASSET" --yes || true
-              echo "ciphertext purged"
-              exit 0
-            fi
-            sleep 30
-          done
+          cp "$EXE" "$EXE_ASSET"
+          gh release upload "$TAG" "$EXE_ASSET" --repo "$GITHUB_REPOSITORY" --clobber
+          echo "uploaded $EXE_ASSET ($(wc -c < "$EXE_ASSET") bytes)"
 
   android:
-    name: Original Android APK (arm64)
+    name: Demo Android APK (arm64)
+    needs: prepare
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
@@ -114,13 +110,12 @@ jobs:
           fi
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
-      - name: Fetch one-time key and decrypt the ORIGINAL page
+      - name: Verify the fictional demo page (SHA-256 pinned)
         run: |
           set -eu
-          curl -fsSL --retry 6 --retry-all-errors --max-time 60 "$DATA_URL/key.txt" -o "$KEY_FILE"
-          node "$ENC_TOOL" decrypt app/src/index.html.enc app/src/index.html "$KEY_FILE"
           test "$(wc -c < app/src/index.html)" -gt 500000
-          rm -f app/src/index.html.enc
+          node -e "const c=require('crypto'),f=require('fs');const h=c.createHash('sha256').update(f.readFileSync('app/src/index.html')).digest('hex');if(h!=='83dc96bc4387516138d1366840782b40bad75463b0621c7f228852fb07a2bb60'){console.error('demo page hash mismatch',h);process.exit(1)}console.log('demo page verified',h)"
+          grep -q '林知远' app/src/index.html
       - name: Generate app icons
         working-directory: app/src-tauri
         run: npx --yes @tauri-apps/cli@latest icon ../src/icon.svg
@@ -160,25 +155,13 @@ jobs:
             cp /tmp/yj-signed.apk "$APK"
             rm -f /tmp/yj-aligned.apk /tmp/yj-signed.apk
           done
-      - name: Encrypt APK and hand off
+      - name: Upload APK to public Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ASSET: yinji-orig-v0.1.0.apk.enc
-          DONE: done-android.txt
         run: |
           set -eu
           APK=$(find app/src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -type f | head -1)
           test -n "$APK"
-          mkdir -p out
-          node "$ENC_TOOL" encrypt "$APK" "out/$ASSET" "$KEY_FILE"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "印迹 v0.1.0" --notes "印迹原版完整安装包"
-          gh release upload "$TAG" "out/$ASSET" --clobber
-          echo "handed off $ASSET"
-          for i in $(seq 1 60); do
-            if curl -fsS --max-time 10 "$DATA_URL/$DONE" -o /dev/null 2>/dev/null; then
-              gh release delete-asset "$TAG" "$ASSET" --yes || true
-              echo "ciphertext purged"
-              exit 0
-            fi
-            sleep 30
-          done
+          cp "$APK" "$APK_ASSET"
+          gh release upload "$TAG" "$APK_ASSET" --repo "$GITHUB_REPOSITORY" --clobber
+          echo "uploaded $APK_ASSET ($(wc -c < "$APK_ASSET") bytes)"
