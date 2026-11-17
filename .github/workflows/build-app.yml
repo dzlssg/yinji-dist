@@ -14,9 +14,9 @@ permissions:
   contents: write
 
 env:
-  TAG: v0.1.4
-  EXE_ASSET: yinji-demo-v0.1.4.exe
-  APK_ASSET: yinji-demo-v0.1.4.apk
+  TAG: v0.1.5
+  EXE_ASSET: yinji-demo-v0.1.5.exe
+  APK_ASSET: yinji-demo-v0.1.5.apk
 
 jobs:
   prepare:
@@ -31,7 +31,7 @@ jobs:
           set -u
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
-              --title "印迹 v0.1.4 · 示例版" \
+              --title "印迹 v0.1.5 · 示例版" \
               --notes "全虚构示例数据，不含任何真实个人信息"
           for n in "_0.1.0_x64-setup.exe" "app-universal-debug.apk" \
                    "yinji-public-v0.1.0.zip" "yinji-full-v0.1.0.exe.enc" \
@@ -58,7 +58,7 @@ jobs:
         run: |
           set -eu
           test "$(wc -c < app/src/index.html)" -gt 500000
-          node -e "const c=require('crypto'),f=require('fs');const s=f.readFileSync('app/src/index.html','utf8').split(String.fromCharCode(13)).join('');const h=c.createHash('sha256').update(s,'utf8').digest('hex');if(h!=='585a50d65e88a3799ea3f795557515422f934bab9c8faf9e3981dde2fb50d54e'){console.error('demo page hash mismatch',h);process.exit(1)}console.log('demo page verified',h)"
+          node -e "const c=require('crypto'),f=require('fs');const s=f.readFileSync('app/src/index.html','utf8').split(String.fromCharCode(13)).join('');const h=c.createHash('sha256').update(s,'utf8').digest('hex');if(h!=='ae8b229eb1a1761a31700c577966d0df465b00218869957719625f9fcd5f6e4e'){console.error('demo page hash mismatch',h);process.exit(1)}console.log('demo page verified',h)"
           grep -q '林知远' app/src/index.html
           echo "demo page OK: $(wc -c < app/src/index.html) bytes"
       - name: Generate app icons
@@ -114,7 +114,7 @@ jobs:
         run: |
           set -eu
           test "$(wc -c < app/src/index.html)" -gt 500000
-          node -e "const c=require('crypto'),f=require('fs');const s=f.readFileSync('app/src/index.html','utf8').split(String.fromCharCode(13)).join('');const h=c.createHash('sha256').update(s,'utf8').digest('hex');if(h!=='585a50d65e88a3799ea3f795557515422f934bab9c8faf9e3981dde2fb50d54e'){console.error('demo page hash mismatch',h);process.exit(1)}console.log('demo page verified',h)"
+          node -e "const c=require('crypto'),f=require('fs');const s=f.readFileSync('app/src/index.html','utf8').split(String.fromCharCode(13)).join('');const h=c.createHash('sha256').update(s,'utf8').digest('hex');if(h!=='ae8b229eb1a1761a31700c577966d0df465b00218869957719625f9fcd5f6e4e'){console.error('demo page hash mismatch',h);process.exit(1)}console.log('demo page verified',h)"
           grep -q '林知远' app/src/index.html
       - name: Generate app icons
         working-directory: app/src-tauri

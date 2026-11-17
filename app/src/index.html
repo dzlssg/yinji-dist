@@ -5043,6 +5043,7 @@ function initVault(){
   function uid(p){return (p||'e')+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
   function strip(s){return String(s==null?'':s).replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/\s+/g,' ').trim();}
+  function stripNL(s){return String(s==null?'':s).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/[ \t]+/g,' ').replace(/\n\s*\n/g,'\n').trim();}
   function arr(v){return Object.prototype.toString.call(v)==='[object Array]'?v:[];}
   function blockOf(id){var r=null;BLOCKS.forEach(function(b){if(b.id===id)r=b;});return r||BLOCKS[5];}
   function lgroups(){return Array.prototype.slice.call(document.querySelectorAll('.col-left .lgroup'));}
@@ -5274,7 +5275,7 @@ function initVault(){
   function variantLabel(type,key){
     var r=key;fieldsFor(type).forEach(function(f){if(f.k===key)r=f.label;});return r;
   }
-  function variantIsLong(key){return key==='desc'||key==='text';}
+  function variantIsLong(key,type){return key==='desc'||key==='text'||(key==='sub'&&type==='skills');}
   function collectVariantInputs(){
     var box=byId('vaultEditorCard').querySelector('.ve-var-fields');
     if(!box||!editVariantDir||!editVariants)return;
@@ -5291,7 +5292,7 @@ function initVault(){
     var v=editVariants[editVariantDir]||{};
     Array.prototype.forEach.call(box.querySelectorAll('[data-vf]'),function(el){
       var k=el.getAttribute('data-vf');
-      el.value=Object.prototype.hasOwnProperty.call(v,k)?strip(v[k]):'';
+      el.value=Object.prototype.hasOwnProperty.call(v,k)?(variantIsLong(k,editBlock)?stripNL(v[k]):strip(v[k])):'';
     });
   }
 
@@ -5524,7 +5525,7 @@ function initVault(){
       var custom=allMode?
         (vc?'<span class="ve-custom" title="已为多个方向定制表述">'+vc+' 个方向已定制</span>':''):
         ((e.variants&&e.variants[t.id]&&Object.keys(e.variants[t.id]).length)?
-          '<span class="ve-custom" title="当前方向有专属表述">已定制 · '+esc(t.name)+'</span>':'');
+          '<span class="ve-custom" title="当前方向有专属表述">已定制 · '+esc(intentLabel(t))+'</span>':'');
       var ctag='<button type="button" class="ve-common'+(e.common?' on':'')+'" data-op="common" '+
          'title="不需要按方向定制的内容：点一下设为「通用」，所有方向直接沿用总库表述">'+
          (e.common?'✓ 通用 · 各方向沿用':'＋ 设为通用')+'</button>';
@@ -5673,7 +5674,7 @@ function initVault(){
          vf.map(function(k){
            var ph='默认：'+esc(strip(editEntry[k]||''));
            return '<label class="ve-var-f"><span>'+esc(variantLabel(b.type,k))+'（留空＝沿用默认）</span>'+
-             (variantIsLong(k)?'<textarea data-vf="'+k+'" placeholder="'+ph+'"></textarea>':
+             (variantIsLong(k,b.type)?'<textarea data-vf="'+k+'" placeholder="'+ph+'"></textarea>':
               '<input type="text" data-vf="'+k+'" placeholder="'+ph+'"/>')+'</label>';
          }).join('')+'</div></div></div>';
     }
@@ -5834,8 +5835,8 @@ function initVault(){
      与 syncDocToVault 的区别：后者会重写全部条目、刷新所有更新时间、清掉
      方向专属表述，适合用户明确点「↺ 把简历改动同步进库」；若每次点「保存」
      都跑一遍，会误伤没改过的条目。这里按 applyToResume 的同一套可见顺序对齐，
-     逐字段做纯文本归一化比对，只覆盖变化字段：没改的条目一个字节都不动，
-     variants / pick 顺序 / 更新时间也保持不变。 */
+     逐字段做纯文本归一化比对，只覆盖变化字段：没改的条目一个字节都不动；
+     手改字段写进当前方向的 variants（=定制表述），其它方向 / pick 不变。 */
   function syncDocEditsToVault(){
     if(!DB)return null;
     var h=harvest(),t=curT(),upd=0,add=0;
@@ -5861,10 +5862,11 @@ function initVault(){
           if(norm(f[k])!==norm(me[k]))changed.push(k);
         });
         if(!changed.length)return;
-        changed.forEach(function(k){ex[k]=f[k];});
-        /* 该方向的旧专属表述会让下次「应用」把旧文案贴回来，一并失效 */
+        /* 【方向专属】当前方向页面上直接手改的文字 = 该方向的定制化表述：
+           写进 ex.variants[t.id]，通用基准 ex[k] 保持不动；切到别的方向互不串味。 */
         var v=ex.variants&&ex.variants[t.id];
-        if(v){KEYS.forEach(function(k){delete v[k];});if(!Object.keys(v).length)delete ex.variants[t.id];}
+        if(!v){v={};ex.variants[t.id]=v;}
+        changed.forEach(function(k){v[k]=f[k];});
         ex.updated=now();upd++;
       });
     });
@@ -7186,7 +7188,7 @@ initVault();
   /* 检查更新：与小蛋仓同一套 GitHub Release latest 逻辑。
      公开分发仓库 dzlssg/yinji-dist 只放不含真实简历的「公开版」zip。
      APP_VERSION 与根目录 VERSION 保持一致，tools/verify.py 会校验，发版时两处一起改。 */
-  var APP_VERSION = String(window.YJ_APP_VERSION || '0.1.4').replace(/^v/i, '');
+  var APP_VERSION = String(window.YJ_APP_VERSION || '0.1.5').replace(/^v/i, '');
   var UPDATE_REPO = 'dzlssg/yinji-dist';
   var UPDATE_CACHE_KEY = 'yinji_demo_update_cache';
   /* 与小蛋仓同一个 Supabase 项目；印迹的数据存在独立表 yinji_data，不与小蛋仓混用。
