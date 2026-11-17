@@ -1352,6 +1352,28 @@ body.yj-desk{overflow:hidden}
  html,body{touch-action:pan-x pan-y}
  #yjHost,#vaultModal,#shareModal,#dataViewModal,#formatPanel{touch-action:pan-x pan-y}
 }
+
+/* ===== YJ-VT-COMPACT · 岗位方向列表收紧（纯追加，原规则一条不删） ===== */
+#vaultModal #vaultTargets{gap:3px}
+#vaultModal .vt-card{padding:5px 12px}
+#vaultModal .vt-meta{margin-top:0}
+
+/* ===== YJ-INAPP-DL · 应用内下载进度弹窗（纯追加，原规则一条不删） ===== */
+.yj-dl-mask{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.45);
+ display:none;align-items:center;justify-content:center;padding:24px}
+.yj-dl-mask.on{display:flex}
+.yj-dl-box{width:min(340px,100%);background:#fff;border-radius:18px;padding:22px 20px;
+ box-shadow:0 12px 40px rgba(0,0,0,.2);font-family:inherit;color:#1d1d1f}
+.yj-dl-box h3{margin:0 0 6px;font-size:17px;font-weight:600}
+.yj-dl-name{font-size:12px;color:#6e6e73;word-break:break-all;margin-bottom:16px}
+.yj-dl-track{height:6px;border-radius:99px;background:#e8e8ed;overflow:hidden}
+.yj-dl-bar{height:100%;width:0;background:#1d1d1f;border-radius:99px;transition:width .15s}
+.yj-dl-status{font-size:12px;color:#6e6e73;margin-top:10px;min-height:18px}
+.yj-dl-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.yj-dl-btn{border:0;border-radius:10px;padding:9px 14px;font-size:13px;cursor:pointer;
+ background:#f2f2f7;color:#1d1d1f}
+.yj-dl-btn.primary{background:#1d1d1f;color:#fff}
+.yj-dl-btn.hidden{display:none}
 </style>
 </head>
 <body class="editing original-mode" data-doc="resume" data-legacy="示例简历-外贸方向-可编辑版">
@@ -7164,7 +7186,7 @@ initVault();
   /* 检查更新：与小蛋仓同一套 GitHub Release latest 逻辑。
      公开分发仓库 dzlssg/yinji-dist 只放不含真实简历的「公开版」zip。
      APP_VERSION 与根目录 VERSION 保持一致，tools/verify.py 会校验，发版时两处一起改。 */
-  var APP_VERSION = String(window.YJ_APP_VERSION || '0.1.3').replace(/^v/i, '');
+  var APP_VERSION = String(window.YJ_APP_VERSION || '0.1.4').replace(/^v/i, '');
   var UPDATE_REPO = 'dzlssg/yinji-dist';
   var UPDATE_CACHE_KEY = 'yinji_demo_update_cache';
   /* 与小蛋仓同一个 Supabase 项目；印迹的数据存在独立表 yinji_data，不与小蛋仓混用。
@@ -9396,6 +9418,166 @@ window.__yinji={
    if(!isResume()&&e.cancelable)e.preventDefault();
   },{passive:false});
  });
+})();
+
+/* ===== YJ-INAPP-DL · 检查更新应用内下载（纯追加，不改任何原有逻辑） ===== */
+(function(){
+ 'use strict';
+ var DL_DONE=false;
+ function tauri(){
+  return !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke);
+ }
+ function isAndroid(){ return /Android/i.test(navigator.userAgent||''); }
+ function fmt(n){
+  n=Number(n)||0;
+  if(n<1024)return n+' B';
+  if(n<1048576)return (n/1024).toFixed(1)+' KB';
+  if(n<1073741824)return (n/1048576).toFixed(1)+' MB';
+  return (n/1073741824).toFixed(2)+' GB';
+ }
+ function tip(msg){
+  var t=document.getElementById('toast')||
+   (document.getElementById('yjHost')&&document.getElementById('yjHost').shadowRoot&&
+    document.getElementById('yjHost').shadowRoot.getElementById('toast'));
+  if(t){t.textContent=msg;t.classList.add('on');clearTimeout(t._dlTm);
+   t._dlTm=setTimeout(function(){t.classList.remove('on');},2600);}
+  else try{console.log('[印迹下载]',msg);}catch(e){}
+ }
+ function ensureUI(){
+  if(document.getElementById('yjDlMask'))return document.getElementById('yjDlMask');
+  var d=document.createElement('div');
+  d.innerHTML='<div class="yj-dl-mask" id="yjDlMask" aria-hidden="true">'+
+   '<div class="yj-dl-box" role="dialog" aria-modal="true">'+
+    '<h3 id="yjDlTitle">正在下载更新</h3>'+
+    '<div class="yj-dl-name" id="yjDlName"></div>'+
+    '<div class="yj-dl-track"><div class="yj-dl-bar" id="yjDlBar"></div></div>'+
+    '<div class="yj-dl-status" id="yjDlStatus">准备下载…</div>'+
+    '<div class="yj-dl-actions">'+
+     '<button class="yj-dl-btn" data-yjdl="close">关闭</button>'+
+     '<button class="yj-dl-btn hidden" data-yjdl="retry" id="yjDlRetry">继续下载</button>'+
+     '<button class="yj-dl-btn primary hidden" data-yjdl="open" id="yjDlOpen">打开安装包</button>'+
+    '</div>'+
+   '</div></div>';
+  document.body.appendChild(d);
+  var m=document.getElementById('yjDlMask');
+  m.addEventListener('click',function(e){
+   var b=e.target.closest&&e.target.closest('[data-yjdl]');if(!b)return;
+   var a=b.getAttribute('data-yjdl');
+   if(a==='close'){m.classList.remove('on');m.setAttribute('aria-hidden','true');return;}
+   if(a==='retry'&&m._dlAgain)m._dlAgain();
+   if(a==='open'&&m._dlPath)openPkg(m._dlPath);
+  });
+  return m;
+ }
+ function openPkg(path){
+  if(!tauri()){tip('请在浏览器下载列表里点击安装包');return;}
+  var shell=window.__TAURI__.shell;
+  if(!shell||!shell.open){tip('无法调起安装，请到下载目录手动打开');return;}
+  var p=isAndroid()?('file://'+path):path;
+  shell.open(p).catch(function(){
+   tip(isAndroid()?'系统未允许直接安装，请在通知栏或文件管理器打开安装包':'打开失败，请到下载目录手动打开');
+  });
+ }
+ function setProg(got,total){
+  var m=document.getElementById('yjDlMask');if(!m)return;
+  var pct=total>0?Math.min(100,Math.floor(got/total*100)):0;
+  var bar=document.getElementById('yjDlBar'),st=document.getElementById('yjDlStatus');
+  if(bar)bar.style.width=pct+'%';
+  if(st)st.textContent='下载中… '+fmt(got)+(total?' / '+fmt(total):'')+'（'+pct+'%）';
+ }
+ function finishUI(path){
+  var m=document.getElementById('yjDlMask');if(!m)return;
+  m._dlPath=path||'';m._dlDone=true;
+  document.getElementById('yjDlTitle').textContent='下载完成';
+  document.getElementById('yjDlBar').style.width='100%';
+  document.getElementById('yjDlStatus').textContent='安装包已保存，点「打开安装包」继续安装';
+  var r=document.getElementById('yjDlRetry');if(r)r.classList.add('hidden');
+  var o=document.getElementById('yjDlOpen');if(o)o.classList.remove('hidden');
+ }
+ function failUI(msg,again){
+  var m=document.getElementById('yjDlMask');if(!m)return;
+  m._dlAgain=again||null;
+  document.getElementById('yjDlStatus').textContent='下载中断：'+msg+(tauri()?'（进度已保留，可点「继续下载」）':'');
+  var r=document.getElementById('yjDlRetry');if(r&&again)r.classList.remove('hidden');
+ }
+ function pickAsset(){
+  // 从真源拿到候选 url（已按平台选或回退 zip）；这里再按平台二次校正
+  var mask=document.getElementById('yjUpdateMask');
+  var url=mask&&mask._downloadUrl||'';
+  var rel=mask&&mask._releaseUrl||'';
+  return {url:url,rel:rel};
+ }
+ function fnameOf(u){
+  try{var s=String(u).split('?')[0];var n=s.substring(s.lastIndexOf('/')+1);
+   if(n&&/\.(apk|exe|zip)$/i.test(n))return n;}catch(e){}
+  return isAndroid()?'yinji-demo.apk':'yinji-demo-setup.exe';
+ }
+ function downloadTauri(url,name){
+  var C=window.__TAURI__.core.Channel;
+  var ch=new C(function(p){setProg(p.downloaded,p.total);});
+  return window.__TAURI__.core.invoke('download_update',
+    {url:url,filename:name,onProgress:ch}).then(function(saved){finishUI(saved);});
+ }
+ function downloadWeb(url,name){
+  return fetch(url).then(function(res){
+   if(!res.ok)throw new Error('HTTP '+res.status);
+   var total=parseInt(res.headers.get('Content-Length')||'0',10)||0;
+   if(!res.body||!res.body.getReader){
+    return res.blob().then(function(b){saveBlob(b,name);finishUI('');});
+   }
+   var rd=res.body.getReader(),chunks=[],got=0;
+   function pump(){
+    return rd.read().then(function(x){
+     if(x.done){saveBlob(new Blob(chunks),name);finishUI('');return;}
+     chunks.push(x.value);got+=x.value.length;setProg(got,total);return pump();
+    });
+   }
+   return pump();
+  });
+ }
+ function saveBlob(blob,name){
+  var u=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=u;a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(function(){a.remove();URL.revokeObjectURL(u);},1500);
+ }
+ function start(){
+  var a=pickAsset();
+  if(!a.url){tip('暂无可用的安装包，请点「打开下载页」手动下载');return;}
+  var m=ensureUI();
+  m.classList.add('on');m.setAttribute('aria-hidden','false');m._dlDone=false;m._dlPath='';
+  document.getElementById('yjDlTitle').textContent='正在下载更新';
+  document.getElementById('yjDlBar').style.width='0%';
+  document.getElementById('yjDlStatus').textContent='准备下载…';
+  document.getElementById('yjDlRetry').classList.add('hidden');
+  document.getElementById('yjDlOpen').classList.add('hidden');
+  var name=fnameOf(a.url);document.getElementById('yjDlName').textContent=name;
+  var job=tauri()?downloadTauri(a.url,name):downloadWeb(a.url,name);
+  return job.catch(function(err){
+   var msg=(err&&err.message)||String(err);
+   failUI(msg,function(){start();});tip('下载中断：'+msg);
+  });
+ }
+ // 捕获阶段接管两个按钮：原 handler 在 mask 上冒泡，here 先执行并阻止冒泡
+ document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('[data-yj="updDl"],[data-yj="updPage"]');
+  if(!b)return;
+  var mask=document.getElementById('yjUpdateMask');
+  if(!mask||!mask.classList.contains('on'))return;
+  var act=b.getAttribute('data-yj');
+  if(act==='updDl'){
+   e.preventDefault();e.stopPropagation();
+   if(!DL_DONE){DL_DONE=true;setTimeout(function(){DL_DONE=false;},400);}
+   start();
+  }else if(act==='updPage'){
+   var a=pickAsset();var u=a.rel||('https://github.com/dzlssg/yinji-dist/releases');
+   if(tauri()&&window.__TAURI__.shell&&window.__TAURI__.shell.open){
+    e.preventDefault();e.stopPropagation();
+    window.__TAURI__.shell.open(u).catch(function(){window.open(u,'_blank','noopener');});
+   }
+   // 非 Tauri 交给原逻辑 window.open
+  }
+ },true);
+ window.__yjInappDlReady=true;
 })();
 
 </script>
